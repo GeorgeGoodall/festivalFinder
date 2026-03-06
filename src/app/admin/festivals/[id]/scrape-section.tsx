@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { ScrapeProgress } from "../scrape-progress";
 import { saveScrapedArtists } from "@/lib/actions/scrape";
 
 interface ScrapeSectionProps {
   festivalId: string;
-  lineupUrl: string | null;
+  websiteUrl: string | null;
   lastScrapedAt: Date | null;
 }
 
@@ -14,54 +15,20 @@ interface Artist {
   billing: "headliner" | "support";
 }
 
-export function ScrapeSection({ festivalId, lineupUrl, lastScrapedAt }: ScrapeSectionProps) {
-  const [url, setUrl] = useState(lineupUrl ?? "");
-  const [scraping, setScraping] = useState(false);
-  const [saving, setSaving] = useState(false);
+export function ScrapeSection({ festivalId, websiteUrl, lastScrapedAt }: ScrapeSectionProps) {
   const [artists, setArtists] = useState<Artist[]>([]);
-  const [warning, setWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
 
-  async function handleScrape(forceExtract = false) {
-    if (!url.trim()) return;
-    setScraping(true);
-    setWarning(null);
-    setError(null);
-    setArtists([]);
-    setDone(false);
+  function updateArtist(index: number, field: keyof Artist, value: string) {
+    const updated = [...artists];
+    updated[index] = { ...updated[index], [field]: value };
+    setArtists(updated);
+  }
 
-    try {
-      const res = await fetch("/api/admin/scrape-lineup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), festivalId }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Scraping failed");
-        return;
-      }
-
-      if (!data.extraction.isLineupPage && !forceExtract) {
-        setWarning(
-          data.extraction.rejectionReason ||
-            "This doesn't appear to be a lineup page."
-        );
-        if (data.extraction.artists?.length) {
-          setArtists(data.extraction.artists);
-        }
-        return;
-      }
-
-      setArtists(data.extraction.artists || []);
-    } catch {
-      setError("Failed to scrape. Check the URL and try again.");
-    } finally {
-      setScraping(false);
-    }
+  function removeArtist(index: number) {
+    setArtists(artists.filter((_, i) => i !== index));
   }
 
   async function handleSave() {
@@ -78,47 +45,23 @@ export function ScrapeSection({ festivalId, lineupUrl, lastScrapedAt }: ScrapeSe
     }
   }
 
-  function updateArtist(index: number, field: keyof Artist, value: string) {
-    const updated = [...artists];
-    updated[index] = { ...updated[index], [field]: value };
-    setArtists(updated);
-  }
-
-  function removeArtist(index: number) {
-    setArtists(artists.filter((_, i) => i !== index));
-  }
-
   return (
     <div className="max-w-2xl mt-8">
-      <h2 className="text-xl font-bold mb-4">Scrape Lineup from Website</h2>
+      <h2 className="text-xl font-bold mb-4">Scrape from Website</h2>
 
       <div className="bg-white p-4 rounded-lg shadow space-y-4">
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
-            <label
-              htmlFor="lineupUrl"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Lineup Page URL
-            </label>
-            <input
-              id="lineupUrl"
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://festival.com/lineup"
-              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => handleScrape()}
-            disabled={scraping || !url.trim()}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {scraping ? "Scraping..." : "Scrape Lineup"}
-          </button>
-        </div>
+        <ScrapeProgress
+          festivalId={festivalId}
+          initialUrl={websiteUrl ?? undefined}
+          onComplete={(data) => {
+            setError(null);
+            setDone(false);
+            setArtists(data.extraction.artists || []);
+          }}
+          onError={(message) => {
+            setError(message);
+          }}
+        />
 
         {lastScrapedAt && (
           <p className="text-xs text-gray-500">
@@ -130,23 +73,10 @@ export function ScrapeSection({ festivalId, lineupUrl, lastScrapedAt }: ScrapeSe
           <p className="text-sm text-red-600 bg-red-50 p-3 rounded">{error}</p>
         )}
 
-        {warning && (
-          <div className="bg-yellow-50 p-3 rounded space-y-2">
-            <p className="text-sm text-yellow-800">{warning}</p>
-            <button
-              type="button"
-              onClick={() => handleScrape(true)}
-              className="text-sm text-yellow-700 underline hover:text-yellow-900"
-            >
-              Extract anyway
-            </button>
-          </div>
-        )}
-
         {artists.length > 0 && (
           <div className="border rounded p-4 space-y-3">
             <h3 className="font-medium">
-              Found {artists.length} artists - Review & Save
+              Found {artists.length} artists — Review & Save
             </h3>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {artists.map((a, i) => (

@@ -252,7 +252,7 @@ export default async function EditFestivalPage({
 
       <ScrapeSection
         festivalId={id}
-        lineupUrl={festival.lineupUrl}
+        websiteUrl={festival.websiteUrl}
         lastScrapedAt={festival.lastScrapedAt}
       />
 
