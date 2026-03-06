@@ -18,9 +18,20 @@ export async function POST(req: NextRequest) {
 
   try {
     logger.info("Starting poster extraction", { posterUrl });
-    const result = await extractFromPoster(posterUrl);
-    logger.info("Extraction successful", { festivalName: result.festival_name, artistCount: result.artists.length });
-    return NextResponse.json({ extraction: result });
+    const { extraction, usage } = await extractFromPoster(posterUrl);
+    logger.info("Extraction successful", { festivalName: extraction.festival_name, artistCount: extraction.artists.length });
+
+    await prisma.apiUsageLog.create({
+      data: {
+        model: usage.model,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        festivalName: extraction.festival_name,
+        success: true,
+      },
+    });
+
+    return NextResponse.json({ extraction });
   } catch (error) {
     logger.error("Extraction failed", error);
     return NextResponse.json({ error: "Extraction failed", details: String(error) }, { status: 500 });
