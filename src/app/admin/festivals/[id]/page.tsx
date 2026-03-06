@@ -9,6 +9,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { UK_REGIONS } from "@/lib/constants";
 import { PosterSection } from "./poster-section";
+import { ScrapeSection } from "./scrape-section";
 
 function formatDateForInput(date: Date): string {
   return date.toISOString().split("T")[0];
@@ -247,6 +248,12 @@ export default async function EditFestivalPage({
       </form>
 
       <PosterSection festivalId={id} posters={latestPosters} />
+
+      <ScrapeSection
+        festivalId={id}
+        lineupUrl={festival.lineupUrl}
+        lastScrapedAt={festival.lastScrapedAt}
+      />
 
       {/* Artists Section */}
       <div className="max-w-2xl mt-8">
