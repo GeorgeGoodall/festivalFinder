@@ -19,6 +19,7 @@ export async function createFestival(formData: FormData) {
   const ticketUrl = formData.get("ticketUrl") as string;
   const posterImageUrl = formData.get("posterImageUrl") as string;
   const artistsJson = formData.get("artists") as string;
+  const lineupUrl = formData.get("lineupUrl") as string;
 
   if (!name || !startDate || !endDate || !location || !region) {
     throw new Error("Missing required fields");
@@ -46,6 +47,7 @@ export async function createFestival(formData: FormData) {
         hasCamping,
         websiteUrl: websiteUrl || null,
         ticketUrl: ticketUrl || null,
+        lineupUrl: lineupUrl || null,
         status: "draft",
       },
     });

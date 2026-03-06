@@ -32,6 +32,9 @@ export function NewFestivalForm() {
   const [location, setLocation] = useState("");
   const [region, setRegion] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [lineupUrl, setLineupUrl] = useState("");
+  const [scrapingUrl, setScrapingUrl] = useState(false);
+  const [scrapeWarning, setScrapeWarning] = useState<string | null>(null);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -75,6 +78,42 @@ export function NewFestivalForm() {
       setExtracted(true);
     }
     setExtracting(false);
+  }
+
+  async function handleScrapeUrl() {
+    if (!lineupUrl.trim()) return;
+    setScrapingUrl(true);
+    setScrapeWarning(null);
+
+    try {
+      const res = await fetch("/api/admin/scrape-lineup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: lineupUrl.trim() }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setScrapeWarning(data.error || "Scraping failed");
+        setScrapingUrl(false);
+        return;
+      }
+
+      if (!data.extraction.isLineupPage) {
+        setScrapeWarning(
+          data.extraction.rejectionReason || "This doesn't appear to be a lineup page."
+        );
+      }
+
+      if (data.extraction.artists?.length) {
+        setArtists(data.extraction.artists);
+        setExtracted(true);
+      }
+    } catch {
+      setScrapeWarning("Failed to scrape. Check the URL and try again.");
+    } finally {
+      setScrapingUrl(false);
+    }
   }
 
   function updateArtist(index: number, field: keyof Artist, value: string) {
@@ -147,6 +186,42 @@ export function NewFestivalForm() {
         </div>
       </div>
 
+      {/* Step 1b: Scrape from URL */}
+      <div className="max-w-2xl bg-white p-6 rounded-lg shadow mb-6">
+        <h2 className="text-lg font-bold mb-2">
+          Or: Scrape Lineup from Website
+        </h2>
+        <p className="text-sm text-gray-700 mb-4">
+          Paste a festival lineup page URL and we&apos;ll extract the artist names.
+        </p>
+
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <input
+              type="url"
+              value={lineupUrl}
+              onChange={(e) => setLineupUrl(e.target.value)}
+              placeholder="https://festival.com/lineup"
+              className="block w-full rounded border border-gray-300 px-3 py-2"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleScrapeUrl}
+            disabled={scrapingUrl || !lineupUrl.trim()}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            {scrapingUrl ? "Scraping..." : "Scrape Lineup"}
+          </button>
+        </div>
+
+        {scrapeWarning && (
+          <p className="mt-2 text-sm text-yellow-800 bg-yellow-50 p-3 rounded">
+            {scrapeWarning}
+          </p>
+        )}
+      </div>
+
       {/* Step 2: Form (pre-filled from extraction) */}
       <form
         action={createFestival}
@@ -164,6 +239,9 @@ export function NewFestivalForm() {
             name="artists"
             value={JSON.stringify(artists)}
           />
+        )}
+        {lineupUrl && (
+          <input type="hidden" name="lineupUrl" value={lineupUrl} />
         )}
 
         <div>
