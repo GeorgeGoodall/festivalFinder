@@ -12,6 +12,17 @@ export interface ExtractionResult {
   artists: Array<{ name: string; billing: "headliner" | "support" | "other" }>;
 }
 
+export interface ExtractionUsage {
+  inputTokens: number;
+  outputTokens: number;
+  model: string;
+}
+
+export interface ExtractionResponse {
+  extraction: ExtractionResult;
+  usage: ExtractionUsage;
+}
+
 const extractionTool: Anthropic.Messages.Tool = {
   name: "extract_festival_info",
   description: "Extract structured festival information from a poster image",
@@ -52,7 +63,7 @@ const extractionTool: Anthropic.Messages.Tool = {
   },
 };
 
-export async function extractFromPoster(imageUrl: string): Promise<ExtractionResult> {
+export async function extractFromPoster(imageUrl: string): Promise<ExtractionResponse> {
   const response = await fetch(imageUrl);
   const arrayBuffer = await response.arrayBuffer();
   const base64 = Buffer.from(arrayBuffer).toString("base64");
@@ -97,5 +108,12 @@ Rules:
     throw new Error("No tool_use block in AI response");
   }
 
-  return toolBlock.input as ExtractionResult;
+  return {
+    extraction: toolBlock.input as ExtractionResult,
+    usage: {
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+      model: "claude-sonnet-4-6",
+    },
+  };
 }
