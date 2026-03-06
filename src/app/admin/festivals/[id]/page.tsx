@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { updateFestival, deleteFestival } from "@/lib/actions/festival";
 import { notFound } from "next/navigation";
 import { UK_REGIONS } from "@/lib/constants";
+import { PosterSection } from "./poster-section";
 
 function formatDateForInput(date: Date): string {
   return date.toISOString().split("T")[0];
@@ -240,6 +241,8 @@ export default async function EditFestivalPage({
           Update Festival
         </button>
       </form>
+
+      <PosterSection festivalId={id} currentPosterUrl={festival.posterImageUrl} />
 
       {/* Artists Section */}
       <div className="max-w-2xl mt-8">
