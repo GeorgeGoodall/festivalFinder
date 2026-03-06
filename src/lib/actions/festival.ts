@@ -10,16 +10,17 @@ export async function createFestival(formData: FormData) {
   const description = formData.get("description") as string;
   const startDate = formData.get("startDate") as string;
   const endDate = formData.get("endDate") as string;
-  const city = formData.get("city") as string;
+  const location = formData.get("location") as string;
   const region = formData.get("region") as string;
-  const venue = formData.get("venue") as string;
   const priceFrom = formData.get("priceFrom") as string;
   const priceTo = formData.get("priceTo") as string;
   const hasCamping = formData.get("hasCamping") === "on";
   const websiteUrl = formData.get("websiteUrl") as string;
   const ticketUrl = formData.get("ticketUrl") as string;
+  const posterImageUrl = formData.get("posterImageUrl") as string;
+  const artistsJson = formData.get("artists") as string;
 
-  if (!name || !startDate || !endDate || !city || !region) {
+  if (!name || !startDate || !endDate || !location || !region) {
     throw new Error("Missing required fields");
   }
 
@@ -38,9 +39,8 @@ export async function createFestival(formData: FormData) {
         description: description || null,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
-        city,
+        location,
         region,
-        venue: venue || null,
         priceFrom: priceFrom ? parseInt(priceFrom) : null,
         priceTo: priceTo ? parseInt(priceTo) : null,
         hasCamping,
@@ -53,6 +53,41 @@ export async function createFestival(formData: FormData) {
     throw new Error("Failed to create festival");
   }
 
+  // Create artists from extraction if provided
+  if (artistsJson) {
+    try {
+      const artists = JSON.parse(artistsJson) as Array<{ name: string; billing: string }>;
+      for (const a of artists) {
+        const artistSlug = slugify(a.name);
+        let artist = await prisma.artist.findUnique({ where: { slug: artistSlug } });
+        if (!artist) {
+          artist = await prisma.artist.create({ data: { name: a.name, slug: artistSlug } });
+        }
+        await prisma.festivalArtist.create({
+          data: {
+            festivalId: festival.id,
+            artistId: artist.id,
+            billing: (a.billing as "headliner" | "support") || "support",
+          },
+        });
+      }
+    } catch {
+      // Artist creation is best-effort, don't fail the whole creation
+    }
+  }
+
+  // Create FestivalPoster record if a poster was uploaded
+  if (posterImageUrl) {
+    await prisma.festivalPoster.create({
+      data: {
+        festivalId: festival.id,
+        category: "full_lineup",
+        imageUrl: posterImageUrl,
+        version: 1,
+      },
+    });
+  }
+
   redirect(`/admin/festivals/${festival.id}`);
 }
 
@@ -61,9 +96,8 @@ export async function updateFestival(id: string, formData: FormData) {
   const description = formData.get("description") as string;
   const startDate = formData.get("startDate") as string;
   const endDate = formData.get("endDate") as string;
-  const city = formData.get("city") as string;
+  const location = formData.get("location") as string;
   const region = formData.get("region") as string;
-  const venue = formData.get("venue") as string;
   const priceFrom = formData.get("priceFrom") as string;
   const priceTo = formData.get("priceTo") as string;
   const hasCamping = formData.get("hasCamping") === "on";
@@ -71,7 +105,7 @@ export async function updateFestival(id: string, formData: FormData) {
   const ticketUrl = formData.get("ticketUrl") as string;
   const status = formData.get("status") as string;
 
-  if (!name || !startDate || !endDate || !city || !region) {
+  if (!name || !startDate || !endDate || !location || !region) {
     throw new Error("Missing required fields");
   }
 
@@ -88,9 +122,8 @@ export async function updateFestival(id: string, formData: FormData) {
         description: description || null,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
-        city,
+        location,
         region,
-        venue: venue || null,
         priceFrom: priceFrom ? parseInt(priceFrom) : null,
         priceTo: priceTo ? parseInt(priceTo) : null,
         hasCamping,
