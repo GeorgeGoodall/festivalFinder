@@ -4,22 +4,26 @@ import { authOptions } from "@/lib/auth";
 import { extractFromPoster } from "@/lib/extraction";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/utils";
+import { logger } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { festivalId, posterUrl } = await req.json();
+  const { posterUrl } = await req.json();
 
-  if (!festivalId || !posterUrl) {
-    return NextResponse.json({ error: "Missing festivalId or posterUrl" }, { status: 400 });
+  if (!posterUrl) {
+    return NextResponse.json({ error: "Missing posterUrl" }, { status: 400 });
   }
 
   try {
+    logger.info("Starting poster extraction", { posterUrl });
     const result = await extractFromPoster(posterUrl);
+    logger.info("Extraction successful", { festivalName: result.festival_name, artistCount: result.artists.length });
     return NextResponse.json({ extraction: result });
   } catch (error) {
-    return NextResponse.json({ error: "Extraction failed" }, { status: 500 });
+    logger.error("Extraction failed", error);
+    return NextResponse.json({ error: "Extraction failed", details: String(error) }, { status: 500 });
   }
 }
 

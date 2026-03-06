@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -10,20 +11,22 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData();
   const file = formData.get("file") as File;
-  const festivalId = formData.get("festivalId") as string;
+  const festivalId = formData.get("festivalId") as string | null;
 
-  if (!file || !festivalId) {
-    return NextResponse.json({ error: "Missing file or festivalId" }, { status: 400 });
+  if (!file) {
+    return NextResponse.json({ error: "Missing file" }, { status: 400 });
   }
 
   const ext = file.name.split(".").pop();
-  const fileName = `${festivalId}-${Date.now()}.${ext}`;
+  const prefix = festivalId || `temp-${Date.now()}`;
+  const fileName = `${prefix}-${Date.now()}.${ext}`;
 
   const { error } = await supabaseAdmin.storage
     .from("posters")
     .upload(fileName, file, { contentType: file.type });
 
   if (error) {
+    logger.error("Poster upload failed", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -31,10 +34,12 @@ export async function POST(req: NextRequest) {
     .from("posters")
     .getPublicUrl(fileName);
 
-  await prisma.festival.update({
-    where: { id: festivalId },
-    data: { posterImageUrl: urlData.publicUrl },
-  });
+  if (festivalId) {
+    await prisma.festival.update({
+      where: { id: festivalId },
+      data: { posterImageUrl: urlData.publicUrl },
+    });
+  }
 
   return NextResponse.json({ url: urlData.publicUrl });
 }
