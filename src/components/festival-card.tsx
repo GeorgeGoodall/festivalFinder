@@ -6,12 +6,12 @@ interface FestivalCardProps {
     name: string;
     startDate: Date;
     endDate: Date;
-    city: string;
+    location: string;
     region: string;
     priceFrom: number | null;
     priceTo: number | null;
     hasCamping: boolean;
-    posterImageUrl: string | null;
+    posters: Array<{ imageUrl: string }>;
     artists: Array<{
       billing: string;
       artist: { name: string };
@@ -33,9 +33,9 @@ export function FestivalCard({ festival }: FestivalCardProps) {
   return (
     <Link href={`/festivals/${festival.slug}`} className="block group">
       <div className="bg-white rounded-lg shadow hover:shadow-md transition-shadow overflow-hidden">
-        {festival.posterImageUrl ? (
+        {festival.posters[0]?.imageUrl ? (
           <img
-            src={festival.posterImageUrl}
+            src={festival.posters[0].imageUrl}
             alt={festival.name}
             className="w-full h-48 object-cover"
           />
@@ -50,11 +50,11 @@ export function FestivalCard({ festival }: FestivalCardProps) {
           <h3 className="font-bold text-lg group-hover:text-blue-600 transition-colors">
             {festival.name}
           </h3>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-600 mt-1">
             {formatDate(festival.startDate)} - {formatDate(festival.endDate)}
           </p>
-          <p className="text-sm text-gray-500">
-            {festival.city}, {festival.region}
+          <p className="text-sm text-gray-600">
+            {festival.location}, {festival.region}
           </p>
           <div className="mt-2 flex gap-2 flex-wrap">
             {festival.priceFrom != null && (
@@ -69,10 +69,10 @@ export function FestivalCard({ festival }: FestivalCardProps) {
             )}
           </div>
           {headliners.length > 0 && (
-            <p className="text-sm mt-2 text-gray-700">
+            <p className="text-sm mt-2 text-gray-600">
               <span className="font-medium">{headliners.join(", ")}</span>
               {otherArtists.length > 0 && (
-                <span className="text-gray-400">
+                <span className="text-gray-600">
                   {" "}
                   +{otherArtists.length} more
                 </span>

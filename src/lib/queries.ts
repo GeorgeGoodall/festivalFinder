@@ -53,8 +53,8 @@ export async function searchFestivals(params: SearchParams) {
     include: {
       artists: {
         include: { artist: true },
-        orderBy: { billing: "asc" },
       },
+      posters: true,
     },
     orderBy: { startDate: "asc" },
   });
@@ -88,6 +88,7 @@ export async function getFeaturedFestivals() {
         include: { artist: true },
         where: { billing: "headliner" },
       },
+      posters: true,
     },
     orderBy: { startDate: "asc" },
     take: 6,
