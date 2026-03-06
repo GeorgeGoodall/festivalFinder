@@ -48,12 +48,21 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Missing festivalId or artists" }, { status: 400 });
   }
 
-  // Delete existing artist associations
-  await prisma.festivalArtist.deleteMany({ where: { festivalId } });
+  // Fetch existing artist associations to merge (not replace)
+  const existingLinks = await prisma.festivalArtist.findMany({
+    where: { festivalId },
+    include: { artist: { select: { slug: true } } },
+  });
+  const existingSlugs = new Set(existingLinks.map((link) => link.artist.slug));
 
-  // Create or find artists and link them
+  // Create or find artists and link only those not already associated
+  let added = 0;
   for (const a of artists as Array<{ name: string; billing: string }>) {
     const slug = slugify(a.name);
+
+    // Skip if this artist is already linked to the festival
+    if (existingSlugs.has(slug)) continue;
+
     let artist = await prisma.artist.findUnique({ where: { slug } });
 
     if (!artist) {
@@ -66,10 +75,11 @@ export async function PUT(req: NextRequest) {
       data: {
         festivalId,
         artistId: artist.id,
-        billing: (a.billing as "headliner" | "support" | "other") || "other",
+        billing: (a.billing as "headliner" | "support") || "support",
       },
     });
+    added++;
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, added, existing: existingSlugs.size });
 }
