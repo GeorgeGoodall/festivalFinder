@@ -15,8 +15,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Festival Finder | Find UK Music Festivals",
-  description: "Search UK music festivals by your favourite artists, dates, location, price and more.",
+  title: {
+    default: "Festival Finder | Find UK Music Festivals",
+    template: "%s | Festival Finder",
+  },
+  description: "Search UK music festivals by artist, date, location, price and camping.",
 };
 
 export default function RootLayout({
