@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
+import { POSTER_CATEGORIES } from "@/lib/constants";
+
+function getCategoryLabel(category: string, customCategory: string | null) {
+  if (category === "other" && customCategory) return customCategory;
+  return POSTER_CATEGORIES.find((c) => c.value === category)?.label ?? category;
+}
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -12,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!festival) return {};
   return {
     title: `${festival.name} | Festival Finder`,
-    description: `${festival.name} - ${festival.city}, ${festival.region}. Find lineup, dates, prices and more.`,
+    description: `${festival.name} - ${festival.location}, ${festival.region}. Find lineup, dates, prices and more.`,
   };
 }
 
@@ -23,8 +29,8 @@ export default async function FestivalPage({ params }: Props) {
     include: {
       artists: {
         include: { artist: true },
-        orderBy: { billing: "asc" },
       },
+      posters: true,
     },
   });
 
@@ -32,7 +38,16 @@ export default async function FestivalPage({ params }: Props) {
 
   const headliners = festival.artists.filter((a) => a.billing === "headliner");
   const support = festival.artists.filter((a) => a.billing === "support");
-  const other = festival.artists.filter((a) => a.billing === "other");
+
+  const latestPosters = Object.values(
+    (festival.posters ?? []).reduce<Record<string, (typeof festival.posters)[0]>>((acc, p) => {
+      const key = p.category === "other" ? `other:${p.customCategory}` : p.category;
+      if (!acc[key] || p.version > acc[key].version) {
+        acc[key] = p;
+      }
+      return acc;
+    }, {})
+  );
 
   const formatDate = (d: Date) =>
     d.toLocaleDateString("en-GB", {
@@ -46,9 +61,24 @@ export default async function FestivalPage({ params }: Props) {
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="grid md:grid-cols-2 gap-8">
         <div>
-          {festival.posterImageUrl ? (
+          {latestPosters.length > 1 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {latestPosters.map((poster) => (
+                <div key={poster.id}>
+                  <img
+                    src={poster.imageUrl}
+                    alt={`${festival.name} - ${getCategoryLabel(poster.category, poster.customCategory)}`}
+                    className="w-full rounded-lg shadow"
+                  />
+                  <p className="mt-1 text-sm text-gray-500 text-center">
+                    {getCategoryLabel(poster.category, poster.customCategory)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : latestPosters.length === 1 ? (
             <img
-              src={festival.posterImageUrl}
+              src={latestPosters[0].imageUrl}
               alt={`${festival.name} poster`}
               className="w-full rounded-lg shadow"
             />
@@ -74,8 +104,7 @@ export default async function FestivalPage({ params }: Props) {
             <div>
               <p className="text-sm text-gray-500">Location</p>
               <p>
-                {festival.venue && `${festival.venue}, `}
-                {festival.city}, {festival.region}
+                {festival.location}, {festival.region}
               </p>
             </div>
             {(festival.priceFrom != null || festival.priceTo != null) && (
@@ -97,7 +126,7 @@ export default async function FestivalPage({ params }: Props) {
             </div>
           </div>
           {festival.description && (
-            <p className="mt-4 text-gray-700">{festival.description}</p>
+            <p className="mt-4 text-gray-500">{festival.description}</p>
           )}
           <div className="mt-6 flex gap-3">
             {festival.websiteUrl && (
@@ -160,25 +189,8 @@ export default async function FestivalPage({ params }: Props) {
             </div>
           </div>
         )}
-        {other.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
-              Also Playing
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {other.map((a) => (
-                <span
-                  key={a.artistId}
-                  className="bg-gray-100 px-3 py-1 rounded-full text-sm"
-                >
-                  {a.artist.name}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
         {festival.artists.length === 0 && (
-          <p className="text-gray-400">Lineup not yet announced.</p>
+          <p className="text-gray-500">Lineup not yet announced.</p>
         )}
       </div>
     </div>
