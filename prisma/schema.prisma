@@ -47,7 +47,8 @@ model Festival {
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
-  artists FestivalArtist[]
+  artists   FestivalArtist[]
+  usageLogs ApiUsageLog[]
 
   @@map("festivals")
 }
@@ -96,4 +97,19 @@ model AdminUser {
   name         String?
 
   @@map("admin_users")
+}
+
+model ApiUsageLog {
+  id           String   @id @default(cuid())
+  model        String
+  inputTokens  Int      @map("input_tokens")
+  outputTokens Int      @map("output_tokens")
+  festivalId   String?  @map("festival_id")
+  festivalName String?  @map("festival_name")
+  success      Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  festival Festival? @relation(fields: [festivalId], references: [id], onDelete: SetNull)
+
+  @@map("api_usage_logs")
 }
