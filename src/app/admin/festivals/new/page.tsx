@@ -1,19 +1,5 @@
 import { createFestival } from "@/lib/actions/festival";
-
-const UK_REGIONS = [
-  "East Midlands",
-  "East of England",
-  "London",
-  "North East",
-  "North West",
-  "Northern Ireland",
-  "Scotland",
-  "South East",
-  "South West",
-  "Wales",
-  "West Midlands",
-  "Yorkshire and the Humber",
-];
+import { UK_REGIONS } from "@/lib/constants";
 
 export default function NewFestivalPage() {
   return (

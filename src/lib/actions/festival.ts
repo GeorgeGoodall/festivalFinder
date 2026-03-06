@@ -19,30 +19,39 @@ export async function createFestival(formData: FormData) {
   const websiteUrl = formData.get("websiteUrl") as string;
   const ticketUrl = formData.get("ticketUrl") as string;
 
+  if (!name || !startDate || !endDate || !city || !region) {
+    throw new Error("Missing required fields");
+  }
+
   let slug = slugify(name);
   const existing = await prisma.festival.findUnique({ where: { slug } });
   if (existing) {
     slug = `${slug}-${Date.now()}`;
   }
 
-  const festival = await prisma.festival.create({
-    data: {
-      name,
-      slug,
-      description: description || null,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      city,
-      region,
-      venue: venue || null,
-      priceFrom: priceFrom ? parseInt(priceFrom) : null,
-      priceTo: priceTo ? parseInt(priceTo) : null,
-      hasCamping,
-      websiteUrl: websiteUrl || null,
-      ticketUrl: ticketUrl || null,
-      status: "draft",
-    },
-  });
+  let festival;
+  try {
+    festival = await prisma.festival.create({
+      data: {
+        name,
+        slug,
+        description: description || null,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        city,
+        region,
+        venue: venue || null,
+        priceFrom: priceFrom ? parseInt(priceFrom) : null,
+        priceTo: priceTo ? parseInt(priceTo) : null,
+        hasCamping,
+        websiteUrl: websiteUrl || null,
+        ticketUrl: ticketUrl || null,
+        status: "draft",
+      },
+    });
+  } catch (error) {
+    throw new Error("Failed to create festival");
+  }
 
   redirect(`/admin/festivals/${festival.id}`);
 }
@@ -62,31 +71,48 @@ export async function updateFestival(id: string, formData: FormData) {
   const ticketUrl = formData.get("ticketUrl") as string;
   const status = formData.get("status") as string;
 
-  await prisma.festival.update({
-    where: { id },
-    data: {
-      name,
-      description: description || null,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      city,
-      region,
-      venue: venue || null,
-      priceFrom: priceFrom ? parseInt(priceFrom) : null,
-      priceTo: priceTo ? parseInt(priceTo) : null,
-      hasCamping,
-      websiteUrl: websiteUrl || null,
-      ticketUrl: ticketUrl || null,
-      status: status as "draft" | "pending_review" | "published",
-    },
-  });
+  if (!name || !startDate || !endDate || !city || !region) {
+    throw new Error("Missing required fields");
+  }
+
+  const validStatuses = ["draft", "pending_review", "published"];
+  if (status && !validStatuses.includes(status)) {
+    throw new Error("Invalid status");
+  }
+
+  try {
+    await prisma.festival.update({
+      where: { id },
+      data: {
+        name,
+        description: description || null,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        city,
+        region,
+        venue: venue || null,
+        priceFrom: priceFrom ? parseInt(priceFrom) : null,
+        priceTo: priceTo ? parseInt(priceTo) : null,
+        hasCamping,
+        websiteUrl: websiteUrl || null,
+        ticketUrl: ticketUrl || null,
+        status: status as "draft" | "pending_review" | "published",
+      },
+    });
+  } catch (error) {
+    throw new Error("Failed to update festival");
+  }
 
   revalidatePath(`/admin/festivals/${id}`);
   revalidatePath("/admin/festivals");
 }
 
 export async function deleteFestival(id: string) {
-  await prisma.festival.delete({ where: { id } });
+  try {
+    await prisma.festival.delete({ where: { id } });
+  } catch (error) {
+    throw new Error("Failed to delete festival");
+  }
   revalidatePath("/admin/festivals");
   redirect("/admin/festivals");
 }
