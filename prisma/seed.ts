@@ -4,7 +4,8 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  const passwordHash = await bcrypt.hash("admin123", 12);
+  const password = process.env.ADMIN_SEED_PASSWORD || "admin123";
+  const passwordHash = await bcrypt.hash(password, 12);
 
   await prisma.adminUser.upsert({
     where: { email: "admin@festivalfinder.co.uk" },
@@ -16,7 +17,11 @@ async function main() {
     },
   });
 
-  console.log("Seeded admin user: admin@festivalfinder.co.uk / admin123");
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`Seeded admin user: admin@festivalfinder.co.uk / ${password}`);
+  } else {
+    console.log("Seeded admin user: admin@festivalfinder.co.uk");
+  }
 }
 
 main()
