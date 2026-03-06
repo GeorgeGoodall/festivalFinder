@@ -64,6 +64,7 @@ export default async function EditFestivalPage({
       </div>
 
       <form action={updateAction} className="max-w-2xl space-y-6 bg-white p-6 rounded-lg shadow">
+        <input type="hidden" name="lineupUrl" value={festival.lineupUrl ?? ""} />
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-gray-700">
             Festival Name *

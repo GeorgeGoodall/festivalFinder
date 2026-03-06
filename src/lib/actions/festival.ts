@@ -106,6 +106,7 @@ export async function updateFestival(id: string, formData: FormData) {
   const websiteUrl = formData.get("websiteUrl") as string;
   const ticketUrl = formData.get("ticketUrl") as string;
   const status = formData.get("status") as string;
+  const lineupUrl = formData.get("lineupUrl") as string;
 
   if (!name || !startDate || !endDate || !location || !region) {
     throw new Error("Missing required fields");
@@ -131,6 +132,7 @@ export async function updateFestival(id: string, formData: FormData) {
         hasCamping,
         websiteUrl: websiteUrl || null,
         ticketUrl: ticketUrl || null,
+        lineupUrl: lineupUrl || null,
         status: status as "draft" | "pending_review" | "published",
       },
     });
