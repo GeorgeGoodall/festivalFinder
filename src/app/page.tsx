@@ -2,6 +2,8 @@ import Link from "next/link";
 import { getFeaturedFestivals } from "@/lib/queries";
 import { FestivalCard } from "@/components/festival-card";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Festival Finder | Find UK Music Festivals",
   description:

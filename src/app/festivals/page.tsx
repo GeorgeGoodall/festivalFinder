@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { Suspense } from "react";
 import { searchFestivals, SearchParams } from "@/lib/queries";
 import { FestivalCard } from "@/components/festival-card";

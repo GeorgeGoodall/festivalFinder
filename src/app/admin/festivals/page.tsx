@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminFestivalsPage() {
   const festivals = await prisma.festival.findMany({
     orderBy: { createdAt: "desc" },
