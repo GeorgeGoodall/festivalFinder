@@ -56,6 +56,7 @@ model Festival {
   ticketUrl      String?        @map("ticket_url")
   lineupUrl      String?        @map("lineup_url")
   lineupHash     String?        @map("lineup_hash")
+  posterPageUrl  String?        @map("poster_page_url")
   lastScrapedAt  DateTime?      @map("last_scraped_at")
   status         FestivalStatus @default(draft)
   createdAt      DateTime       @default(now()) @map("created_at")
