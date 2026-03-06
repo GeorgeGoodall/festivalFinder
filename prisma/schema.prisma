@@ -16,6 +16,19 @@ enum FestivalStatus {
 enum Billing {
   headliner
   support
+}
+
+enum PosterCategory {
+  full_lineup
+  main_stage
+  second_stage
+  third_stage
+  day_1
+  day_2
+  day_3
+  day_4
+  dance_electronic
+  acoustic_unplugged
   other
 }
 
@@ -32,8 +45,7 @@ model Festival {
   description    String?
   startDate      DateTime       @map("start_date")
   endDate        DateTime       @map("end_date")
-  venue          String?
-  city           String
+  location       String
   region         String
   latitude       Float?
   longitude      Float?
@@ -42,12 +54,12 @@ model Festival {
   hasCamping     Boolean        @default(false) @map("has_camping")
   websiteUrl     String?        @map("website_url")
   ticketUrl      String?        @map("ticket_url")
-  posterImageUrl String?        @map("poster_image_url")
   status         FestivalStatus @default(draft)
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
   artists   FestivalArtist[]
+  posters   FestivalPoster[]
   usageLogs ApiUsageLog[]
 
   @@map("festivals")
@@ -59,6 +71,7 @@ model Artist {
   slug      String   @unique
   spotifyId String?  @map("spotify_id")
   genre     String?
+  noSplit   Boolean  @default(false) @map("no_split")
   createdAt DateTime @default(now()) @map("created_at")
 
   festivals FestivalArtist[]
@@ -69,13 +82,27 @@ model Artist {
 model FestivalArtist {
   festivalId String  @map("festival_id")
   artistId   String  @map("artist_id")
-  billing    Billing @default(other)
+  billing    Billing @default(support)
 
   festival Festival @relation(fields: [festivalId], references: [id], onDelete: Cascade)
   artist   Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
   @@id([festivalId, artistId])
   @@map("festival_artists")
+}
+
+model FestivalPoster {
+  id             String         @id @default(cuid())
+  festivalId     String         @map("festival_id")
+  category       PosterCategory
+  customCategory String?        @map("custom_category")
+  imageUrl       String         @map("image_url")
+  version        Int            @default(1)
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  festival Festival @relation(fields: [festivalId], references: [id], onDelete: Cascade)
+
+  @@map("festival_posters")
 }
 
 model UserSubmission {
