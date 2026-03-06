@@ -5,11 +5,10 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 export interface ExtractionResult {
   festival_name: string;
   dates: { start: string; end: string };
-  venue: string;
-  city: string;
+  location: string;
   region: string;
   website_url: string;
-  artists: Array<{ name: string; billing: "headliner" | "support" | "other" }>;
+  artists: Array<{ name: string; billing: "headliner" | "support" }>;
 }
 
 export interface ExtractionUsage {
@@ -38,8 +37,7 @@ const extractionTool: Anthropic.Messages.Tool = {
         },
         required: ["start", "end"],
       },
-      venue: { type: "string", description: "Venue name if visible, or empty string" },
-      city: { type: "string", description: "City name if visible, or empty string" },
+      location: { type: "string", description: "Location of the festival - could be a venue name, town, area, or combination (e.g. 'Worthy Farm, Pilton, Somerset' or 'Victoria Park, London'). Use whatever location info is visible on the poster, or empty string" },
       region: { type: "string", description: "UK region (e.g. South East England, Scotland, Wales), or empty string" },
       website_url: { type: "string", description: "Website URL if visible on poster, or empty string" },
       artists: {
@@ -50,8 +48,8 @@ const extractionTool: Anthropic.Messages.Tool = {
             name: { type: "string", description: "Artist or band name" },
             billing: {
               type: "string",
-              enum: ["headliner", "support", "other"],
-              description: "headliner = largest/most prominent names, support = medium names, other = smallest names",
+              enum: ["headliner", "support"],
+              description: "headliner = largest/most prominent names, support = all other artists",
             },
           },
           required: ["name", "billing"],
@@ -59,7 +57,7 @@ const extractionTool: Anthropic.Messages.Tool = {
         description: "All artists/bands identified on the poster",
       },
     },
-    required: ["festival_name", "dates", "venue", "city", "region", "website_url", "artists"],
+    required: ["festival_name", "dates", "location", "region", "website_url", "artists"],
   },
 };
 
@@ -92,9 +90,13 @@ export async function extractFromPoster(imageUrl: string): Promise<ExtractionRes
 
 Rules:
 - List ALL artists/bands you can identify on the poster
-- "headliner" = largest/most prominent names, "support" = medium names, "other" = smallest names
+- "headliner" = largest/most prominent names, "support" = all other artists
+- Do NOT include stage names, tent names, area names, or venue zones as artists (e.g. "Main Stage", "The Tent", "DJ Stage", "Acoustic Lounge" are NOT artists)
+- Do NOT include sponsors, promoters, record labels, or ticket vendors as artists
+- Do NOT include generic descriptive text like "plus many more", "and more TBA", "special guest" as artists
+- If an artist name includes a featuring/collaboration (e.g. "Artist A feat. Artist B", "Artist A ft. Artist B", "Artist A x Artist B", "Artist A & Artist B", "Artist A b2b Artist B"), split them into SEPARATE artist entries with the same billing level
 - If dates are unclear, use your best estimate. If year is missing, assume 2026
-- Extract venue, city, and region separately if visible
+- Extract location (venue, town, area — whatever is visible) and region separately
 - If a website URL is shown on the poster, include it
 - If any field is unclear, use an empty string`,
           },

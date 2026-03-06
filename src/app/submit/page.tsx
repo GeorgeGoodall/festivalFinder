@@ -36,7 +36,7 @@ export default function SubmitFestivalPage() {
         <h1 className="text-2xl font-bold mb-4">
           Thanks for your submission!
         </h1>
-        <p className="text-gray-600">
+        <p className="text-gray-700">
           Your festival has been submitted for review. Our team will check it
           and add it to the database if approved.
         </p>
@@ -47,7 +47,7 @@ export default function SubmitFestivalPage() {
   return (
     <div className="max-w-lg mx-auto py-16 px-4">
       <h1 className="text-2xl font-bold mb-2">Submit a Festival</h1>
-      <p className="text-gray-600 mb-6">
+      <p className="text-gray-700 mb-6">
         Know a festival that&apos;s not in our database? Submit it and
         we&apos;ll review it.
       </p>
@@ -65,7 +65,7 @@ export default function SubmitFestivalPage() {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            Location (city, region)
+            Location
           </label>
           <input
             name="locationHint"

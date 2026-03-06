@@ -14,11 +14,11 @@ export default async function AdminDashboardPage() {
       <div className="grid grid-cols-2 gap-4 max-w-md">
         <div className="bg-white p-6 rounded-lg shadow">
           <p className="text-3xl font-bold">{festivalCount}</p>
-          <p className="text-gray-500">Published Festivals</p>
+          <p className="text-gray-600">Published Festivals</p>
         </div>
         <div className="bg-white p-6 rounded-lg shadow">
           <p className="text-3xl font-bold">{pendingSubmissions}</p>
-          <p className="text-gray-500">Pending Submissions</p>
+          <p className="text-gray-600">Pending Submissions</p>
         </div>
       </div>
     </div>

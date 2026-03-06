@@ -15,19 +15,19 @@ export default async function AdminSubmissionsPage() {
         <table className="w-full text-left">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="px-4 py-3 text-sm font-medium text-gray-500">
+              <th className="px-4 py-3 text-sm font-medium text-gray-600">
                 Festival Name
               </th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-500">
+              <th className="px-4 py-3 text-sm font-medium text-gray-600">
                 Location
               </th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-500">
+              <th className="px-4 py-3 text-sm font-medium text-gray-600">
                 Poster
               </th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-500">
+              <th className="px-4 py-3 text-sm font-medium text-gray-600">
                 Submitted
               </th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-500">
+              <th className="px-4 py-3 text-sm font-medium text-gray-600">
                 Status
               </th>
             </tr>
@@ -71,7 +71,7 @@ export default async function AdminSubmissionsPage() {
               <tr>
                 <td
                   colSpan={5}
-                  className="px-4 py-8 text-center text-gray-400"
+                  className="px-4 py-8 text-center text-gray-600"
                 >
                   No submissions yet.
                 </td>

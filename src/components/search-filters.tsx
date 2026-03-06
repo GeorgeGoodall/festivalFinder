@@ -48,7 +48,7 @@ export function SearchFilters() {
           placeholder="e.g. Arctic Monkeys, Dua Lipa"
           className="mt-1 block w-full rounded border border-gray-300 px-3 py-2"
         />
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="text-xs text-gray-700 mt-1">
           Separate multiple artists with commas
         </p>
       </div>

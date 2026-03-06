@@ -28,7 +28,7 @@ export default async function FestivalsPage({
       </Suspense>
       <div className="mt-8">
         {hasFilters && (
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-sm text-gray-600 mb-4">
             {festivals.length} festival{festivals.length !== 1 ? "s" : ""} found
           </p>
         )}
@@ -38,7 +38,7 @@ export default async function FestivalsPage({
           ))}
         </div>
         {festivals.length === 0 && hasFilters && (
-          <p className="text-center text-gray-400 py-12">
+          <p className="text-center text-gray-600 py-12">
             No festivals match your search. Try adjusting your filters.
           </p>
         )}

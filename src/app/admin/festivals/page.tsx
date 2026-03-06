@@ -21,11 +21,11 @@ export default async function AdminFestivalsPage() {
         <table className="w-full text-left">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="px-4 py-3 text-sm font-medium text-gray-500">Name</th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-500">Date</th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-500">Location</th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-500">Artists</th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-500">Status</th>
+              <th className="px-4 py-3 text-sm font-medium text-gray-600">Name</th>
+              <th className="px-4 py-3 text-sm font-medium text-gray-600">Date</th>
+              <th className="px-4 py-3 text-sm font-medium text-gray-600">Location</th>
+              <th className="px-4 py-3 text-sm font-medium text-gray-600">Artists</th>
+              <th className="px-4 py-3 text-sm font-medium text-gray-600">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -35,19 +35,19 @@ export default async function AdminFestivalsPage() {
                   <Link href={`/admin/festivals/${f.id}`} className="text-blue-600 hover:underline">{f.name}</Link>
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-600">{f.startDate.toLocaleDateString("en-GB")}</td>
-                <td className="px-4 py-3 text-sm text-gray-600">{f.city}, {f.region}</td>
+                <td className="px-4 py-3 text-sm text-gray-600">{f.location}, {f.region}</td>
                 <td className="px-4 py-3 text-sm text-gray-600">{f._count.artists}</td>
                 <td className="px-4 py-3">
                   <span className={`text-xs px-2 py-1 rounded-full ${
                     f.status === "published" ? "bg-green-100 text-green-700"
-                    : f.status === "draft" ? "bg-gray-100 text-gray-700"
+                    : f.status === "draft" ? "bg-gray-100 text-gray-600"
                     : "bg-yellow-100 text-yellow-700"
                   }`}>{f.status}</span>
                 </td>
               </tr>
             ))}
             {festivals.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No festivals yet. Add your first one!</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-600">No festivals yet. Add your first one!</td></tr>
             )}
           </tbody>
         </table>
