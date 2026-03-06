@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { updateFestival, deleteFestival } from "@/lib/actions/festival";
+import {
+  addArtistToFestival,
+  removeArtistFromFestival,
+  updateArtistBilling,
+} from "@/lib/actions/artist";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { UK_REGIONS } from "@/lib/constants";
 import { PosterSection } from "./poster-section";
 
@@ -20,14 +26,24 @@ export default async function EditFestivalPage({
     include: {
       artists: {
         include: { artist: true },
-        orderBy: { billing: "asc" },
       },
+      posters: true,
     },
   });
 
   if (!festival) {
     notFound();
   }
+
+  const latestPosters = Object.values(
+    (festival.posters ?? []).reduce<Record<string, (typeof festival.posters)[0]>>((acc, p) => {
+      const key = p.category === "other" ? `other:${p.customCategory}` : p.category;
+      if (!acc[key] || p.version > acc[key].version) {
+        acc[key] = p;
+      }
+      return acc;
+    }, {})
+  );
 
   const updateAction = updateFestival.bind(null, id);
   const deleteAction = deleteFestival.bind(null, id);
@@ -105,15 +121,16 @@ export default async function EditFestivalPage({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="city" className="block text-sm font-medium text-gray-700">
-              City *
+            <label htmlFor="location" className="block text-sm font-medium text-gray-700">
+              Location *
             </label>
             <input
-              id="city"
-              name="city"
+              id="location"
+              name="location"
               type="text"
               required
-              defaultValue={festival.city}
+              placeholder="e.g. Worthy Farm, Pilton, Somerset"
+              defaultValue={festival.location}
               className="mt-1 block w-full rounded border border-gray-300 px-3 py-2"
             />
           </div>
@@ -134,19 +151,6 @@ export default async function EditFestivalPage({
               ))}
             </select>
           </div>
-        </div>
-
-        <div>
-          <label htmlFor="venue" className="block text-sm font-medium text-gray-700">
-            Venue
-          </label>
-          <input
-            id="venue"
-            name="venue"
-            type="text"
-            defaultValue={festival.venue ?? ""}
-            className="mt-1 block w-full rounded border border-gray-300 px-3 py-2"
-          />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -242,32 +246,106 @@ export default async function EditFestivalPage({
         </button>
       </form>
 
-      <PosterSection festivalId={id} currentPosterUrl={festival.posterImageUrl} />
+      <PosterSection festivalId={id} posters={latestPosters} />
 
       {/* Artists Section */}
       <div className="max-w-2xl mt-8">
         <h2 className="text-xl font-bold mb-4">Lineup</h2>
+
+        {/* Add artist form */}
+        <form
+          action={addArtistToFestival.bind(null, id)}
+          className="bg-white p-4 rounded-lg shadow mb-4 flex items-end gap-3"
+        >
+          <div className="flex-1">
+            <label htmlFor="artistName" className="block text-sm font-medium text-gray-700">
+              Add Artist
+            </label>
+            <input
+              id="artistName"
+              name="artistName"
+              type="text"
+              required
+              placeholder="Artist name"
+              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2"
+            />
+          </div>
+          <div>
+            <label htmlFor="billing" className="block text-sm font-medium text-gray-700">
+              Billing
+            </label>
+            <select
+              id="billing"
+              name="billing"
+              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2"
+            >
+              <option value="support">Support</option>
+              <option value="headliner">Headliner</option>
+            </select>
+          </div>
+          <button
+            type="submit"
+            className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800"
+          >
+            Add
+          </button>
+        </form>
+
         {festival.artists.length === 0 ? (
-          <p className="text-gray-400">No artists added yet.</p>
+          <p className="text-gray-700">No artists added yet.</p>
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <table className="w-full text-left">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-500">Artist</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-500">Billing</th>
+                  <th className="px-4 py-3 text-sm font-medium text-gray-700">Artist</th>
+                  <th className="px-4 py-3 text-sm font-medium text-gray-700">Billing</th>
+                  <th className="px-4 py-3 text-sm font-medium text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {festival.artists.map((fa) => (
                   <tr key={fa.artistId}>
-                    <td className="px-4 py-3">{fa.artist.name}</td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        fa.billing === "headliner" ? "bg-purple-100 text-purple-700"
-                        : fa.billing === "support" ? "bg-blue-100 text-blue-700"
-                        : "bg-gray-100 text-gray-700"
-                      }`}>{fa.billing}</span>
+                      <Link
+                        href={`/admin/artists/${fa.artistId}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {fa.artist.name}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <form
+                        action={updateArtistBilling.bind(null, id, fa.artistId)}
+                        className="flex items-center gap-2"
+                      >
+                        <select
+                          name="billing"
+                          defaultValue={fa.billing}
+                          className="text-sm rounded border border-gray-300 px-2 py-1"
+                        >
+                          <option value="support">Support</option>
+                          <option value="headliner">Headliner</option>
+                        </select>
+                        <button
+                          type="submit"
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          Save
+                        </button>
+                      </form>
+                    </td>
+                    <td className="px-4 py-3">
+                      <form
+                        action={removeArtistFromFestival.bind(null, id, fa.artistId)}
+                      >
+                        <button
+                          type="submit"
+                          className="text-xs text-red-600 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      </form>
                     </td>
                   </tr>
                 ))}
