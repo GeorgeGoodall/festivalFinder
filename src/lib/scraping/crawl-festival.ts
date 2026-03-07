@@ -40,6 +40,7 @@ export type CrawlStage =
   | "extracting"
   | "poster_search"
   | "poster_fallback"
+  | "logo"
   | "complete"
   | "error";
 
@@ -120,6 +121,7 @@ function contentTypeToExt(contentType: string): string {
   if (contentType.includes("jpeg") || contentType.includes("jpg")) return ".jpg";
   if (contentType.includes("webp")) return ".webp";
   if (contentType.includes("gif")) return ".gif";
+  if (contentType.includes("x-icon") || contentType.includes("vnd.microsoft.icon")) return ".ico";
   return ".png";
 }
 
@@ -551,7 +553,7 @@ export async function crawlFestival(
 
   if (homepage.faviconUrl) {
     emit({
-      stage: "poster_search",
+      stage: "logo",
       message: "Fetching festival logo...",
       usage: tracker.getSummary(),
     });
@@ -564,8 +566,10 @@ export async function crawlFestival(
         logoResponse = await fetch(homepage.faviconUrl, {
           signal: logoController.signal,
         });
-      } finally {
         clearTimeout(logoTimeout);
+      } catch (err) {
+        clearTimeout(logoTimeout);
+        throw err;
       }
 
       const logoContentType = logoResponse.headers.get("content-type") || "";
@@ -589,7 +593,7 @@ export async function crawlFestival(
             } = supabaseAdmin.storage.from("posters").getPublicUrl(logoFilename);
             logoImageUrl = publicUrl;
             emit({
-              stage: "poster_search",
+              stage: "logo",
               message: `Logo captured (${Math.round(logoBuffer.length / 1024)}KB)`,
               usage: tracker.getSummary(),
             });
