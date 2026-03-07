@@ -123,7 +123,16 @@ export default async function FestivalPage({ params }: Props) {
             <div>
               <p className="text-sm text-gray-500">Camping</p>
               <p>{festival.hasCamping ? "Yes" : "No"}</p>
+              {festival.campingDetails && (
+                <p className="text-sm text-gray-400 mt-0.5">{festival.campingDetails}</p>
+              )}
             </div>
+            {festival.ageRestriction && (
+              <div>
+                <p className="text-sm text-gray-500">Age Restriction</p>
+                <p>{festival.ageRestriction}</p>
+              </div>
+            )}
           </div>
           {festival.description && (
             <p className="mt-4 text-gray-500">{festival.description}</p>
@@ -150,6 +159,50 @@ export default async function FestivalPage({ params }: Props) {
               </a>
             )}
           </div>
+          {(festival.socialInstagram || festival.socialFacebook || festival.socialX || festival.socialTiktok) && (
+            <div className="mt-4 flex gap-3 flex-wrap">
+              {festival.socialInstagram && (
+                <a
+                  href={festival.socialInstagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-gray-600 hover:text-gray-900 underline"
+                >
+                  Instagram
+                </a>
+              )}
+              {festival.socialFacebook && (
+                <a
+                  href={festival.socialFacebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-gray-600 hover:text-gray-900 underline"
+                >
+                  Facebook
+                </a>
+              )}
+              {festival.socialX && (
+                <a
+                  href={festival.socialX}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-gray-600 hover:text-gray-900 underline"
+                >
+                  X
+                </a>
+              )}
+              {festival.socialTiktok && (
+                <a
+                  href={festival.socialTiktok}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-gray-600 hover:text-gray-900 underline"
+                >
+                  TikTok
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
