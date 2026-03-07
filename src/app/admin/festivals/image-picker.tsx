@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo, type ReactNode } from "react";
 
 export interface ImageCandidate {
   src: string;
@@ -38,7 +38,7 @@ function ImageCard({
   scrapeState,
 }: {
   candidate: ImageCandidate;
-  selectionControl: React.ReactNode;
+  selectionControl: ReactNode;
   isAlgoPick: boolean;
   onScrape?: () => void;
   scrapeState?: ScrapeState;
@@ -75,7 +75,7 @@ function ImageCard({
         {candidate.width !== null && candidate.height !== null && (
           <span>{candidate.width}×{candidate.height}</span>
         )}
-        <span className="capitalize text-gray-400">{candidate.sourceClassification.replace("_", " ")}</span>
+        <span className="capitalize text-gray-400">{candidate.sourceClassification.replaceAll("_", " ")}</span>
       </div>
 
       {onScrape && (
@@ -116,19 +116,18 @@ export function ImagePicker({
   const [scrapeStates, setScrapeStates] = useState<Map<string, ScrapeState>>(new Map());
 
   // Deduplicate by src (same image may appear from multiple pages)
-  const seen = new Set<string>();
-  const uniqueCandidates = candidates.filter((c) => {
-    if (seen.has(c.src)) return false;
-    seen.add(c.src);
-    return true;
-  });
-
-  // Exclude favicons from lineup section
-  const lineupCandidates = uniqueCandidates.filter(
-    (c) => c.sourceClassification !== "favicon"
-  );
-  // Logo section: all candidates including favicon
-  const logoCandidates = uniqueCandidates;
+  const { lineupCandidates, logoCandidates } = useMemo(() => {
+    const seen = new Set<string>();
+    const unique = candidates.filter((c) => {
+      if (seen.has(c.src)) return false;
+      seen.add(c.src);
+      return true;
+    });
+    return {
+      lineupCandidates: unique.filter((c) => c.sourceClassification !== "favicon"),
+      logoCandidates: unique,
+    };
+  }, [candidates]);
 
   const handleScrape = useCallback(
     async (src: string) => {
