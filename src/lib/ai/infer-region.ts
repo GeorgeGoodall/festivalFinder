@@ -9,13 +9,15 @@ export interface InferRegionResult {
   usage: AiUsage;
 }
 
+const MODEL = "claude-haiku-4-5-20251001";
+
 const REGIONS_LIST = UK_REGIONS.join(", ");
 
 export async function inferRegionFromLocation(
   location: string
 ): Promise<InferRegionResult> {
   const message = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: MODEL,
     max_tokens: 32,
     messages: [
       {
@@ -44,7 +46,7 @@ Reply with ONLY the exact region name from the list above, or "unknown" if you c
     usage: {
       inputTokens: message.usage.input_tokens,
       outputTokens: message.usage.output_tokens,
-      model: "claude-haiku-4-5-20251001",
+      model: MODEL,
     },
   };
 }
