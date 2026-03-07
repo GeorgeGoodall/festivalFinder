@@ -21,10 +21,19 @@ const HAIKU_INPUT_PER_M = 0.8;
 const HAIKU_OUTPUT_PER_M = 4.0;
 const SONNET_INPUT_PER_M = 3.0;
 const SONNET_OUTPUT_PER_M = 15.0;
+// Gemini 2.5 Flash — verify current rate at https://ai.google.dev/pricing
+const GEMINI_FLASH_INPUT_PER_M = 0.15;
+const GEMINI_FLASH_OUTPUT_PER_M = 3.5;
 const USD_TO_GBP = 0.79;
 
 function computeCost(inputTokens: number, outputTokens: number, model: string): number {
-  const isHaiku = model.toLowerCase().includes("haiku");
+  const m = model.toLowerCase();
+  if (m.includes("gemini")) {
+    const inputCost = (inputTokens / 1_000_000) * GEMINI_FLASH_INPUT_PER_M;
+    const outputCost = (outputTokens / 1_000_000) * GEMINI_FLASH_OUTPUT_PER_M;
+    return inputCost + outputCost;
+  }
+  const isHaiku = m.includes("haiku");
   const inputCost = (inputTokens / 1_000_000) * (isHaiku ? HAIKU_INPUT_PER_M : SONNET_INPUT_PER_M);
   const outputCost = (outputTokens / 1_000_000) * (isHaiku ? HAIKU_OUTPUT_PER_M : SONNET_OUTPUT_PER_M);
   return inputCost + outputCost;
