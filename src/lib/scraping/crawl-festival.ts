@@ -6,6 +6,8 @@ import { extractFestivalFromText } from "@/lib/ai/extract-festival";
 import { extractFromPoster, type ExtractionResult } from "@/lib/extraction";
 import { CrawlUsageTracker, type UsageSummary } from "./scrape-usage";
 import { supabaseAdmin } from "@/lib/supabase";
+import { inferRegionFromLocation } from "@/lib/ai/infer-region";
+import { UK_REGIONS } from "@/lib/constants";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -326,6 +328,32 @@ export async function crawlFestival(
     throw new Error(
       "Could not find any lineup, festival info, or poster images"
     );
+  }
+
+  // -----------------------------------------------------------------------
+  // 4b. Infer region from location if needed
+  // -----------------------------------------------------------------------
+
+  if (
+    extraction.location &&
+    (!extraction.region ||
+      !(UK_REGIONS as readonly string[]).includes(extraction.region))
+  ) {
+    emit({
+      stage: "extracting",
+      message: "Inferring UK region from location...",
+      usage: tracker.getSummary(),
+    });
+
+    try {
+      const regionResult = await inferRegionFromLocation(extraction.location);
+      tracker.addInferRegion(regionResult.usage);
+      if (regionResult.region) {
+        extraction.region = regionResult.region;
+      }
+    } catch {
+      // Non-fatal: leave region as-is
+    }
   }
 
   // -----------------------------------------------------------------------
