@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/scrape-lineups",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}

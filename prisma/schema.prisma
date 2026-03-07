@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum FestivalStatus {
+  draft
+  pending_review
+  published
+}
+
+enum Billing {
+  headliner
+  support
+}
+
+enum PosterCategory {
+  full_lineup
+  main_stage
+  second_stage
+  third_stage
+  day_1
+  day_2
+  day_3
+  day_4
+  dance_electronic
+  acoustic_unplugged
+  other
+}
+
+enum SubmissionStatus {
+  pending
+  approved
+  rejected
+}
+
+model Festival {
+  id             String         @id @default(cuid())
+  name           String
+  slug           String         @unique
+  description    String?
+  startDate      DateTime       @map("start_date")
+  endDate        DateTime       @map("end_date")
+  location       String
+  region         String
+  latitude       Float?
+  longitude      Float?
+  priceFrom      Int?           @map("price_from")
+  priceTo        Int?           @map("price_to")
+  hasCamping     Boolean        @default(false) @map("has_camping")
+  websiteUrl     String?        @map("website_url")
+  ticketUrl      String?        @map("ticket_url")
+  lineupUrl      String?        @map("lineup_url")
+  lineupHash     String?        @map("lineup_hash")
+  posterPageUrl  String?        @map("poster_page_url")
+  lastScrapedAt  DateTime?      @map("last_scraped_at")
+  status         FestivalStatus @default(draft)
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  artists   FestivalArtist[]
+  posters   FestivalPoster[]
+  usageLogs ApiUsageLog[]
+
+  @@map("festivals")
+}
+
+model Artist {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  spotifyId String?  @map("spotify_id")
+  genre     String?
+  noSplit   Boolean  @default(false) @map("no_split")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  festivals FestivalArtist[]
+
+  @@map("artists")
+}
+
+model FestivalArtist {
+  festivalId String  @map("festival_id")
+  artistId   String  @map("artist_id")
+  billing    Billing @default(support)
+
+  festival Festival @relation(fields: [festivalId], references: [id], onDelete: Cascade)
+  artist   Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@id([festivalId, artistId])
+  @@map("festival_artists")
+}
+
+model FestivalPoster {
+  id             String         @id @default(cuid())
+  festivalId     String         @map("festival_id")
+  category       PosterCategory
+  customCategory String?        @map("custom_category")
+  imageUrl       String         @map("image_url")
+  version        Int            @default(1)
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  festival Festival @relation(fields: [festivalId], references: [id], onDelete: Cascade)
+
+  @@map("festival_posters")
+}
+
+model UserSubmission {
+  id             String           @id @default(cuid())
+  festivalName   String           @map("festival_name")
+  posterImageUrl String?          @map("poster_image_url")
+  submitterEmail String?          @map("submitter_email")
+  locationHint   String?          @map("location_hint")
+  status         SubmissionStatus @default(pending)
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  @@map("user_submissions")
+}
+
+model AdminUser {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  passwordHash String  @map("password_hash")
+  name         String?
+
+  @@map("admin_users")
+}
+
+model ApiUsageLog {
+  id           String   @id @default(cuid())
+  model        String
+  inputTokens  Int      @map("input_tokens")
+  outputTokens Int      @map("output_tokens")
+  festivalId   String?  @map("festival_id")
+  festivalName String?  @map("festival_name")
+  success      Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  festival Festival? @relation(fields: [festivalId], references: [id], onDelete: SetNull)
+
+  @@map("api_usage_logs")
+}
