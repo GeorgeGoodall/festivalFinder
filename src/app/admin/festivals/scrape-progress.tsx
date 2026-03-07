@@ -56,7 +56,14 @@ function PageTreeNode({ node, depth = 0 }: { node: PageNode; depth?: number }) {
   const cat = node.category
     ? CATEGORY_STYLES[node.category]
     : CATEGORY_STYLES.pending;
-  const displayName = node.title || node.path || new URL(node.url).pathname;
+  let displayName = node.title || node.path || node.url;
+  try {
+    if (!node.title && !node.path && node.url) {
+      displayName = new URL(node.url).pathname;
+    }
+  } catch {
+    // node.url is not a valid absolute URL — fall back to raw value
+  }
 
   return (
     <>

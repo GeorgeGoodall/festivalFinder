@@ -32,6 +32,11 @@ export async function createFestival(formData: FormData) {
     slug = `${slug}-${Date.now()}`;
   }
 
+  const parsedStart = new Date(startDate);
+  const parsedEnd = new Date(endDate);
+  if (isNaN(parsedStart.getTime())) throw new Error("Invalid start date");
+  if (isNaN(parsedEnd.getTime())) throw new Error("Invalid end date");
+
   let festival;
   try {
     festival = await prisma.festival.create({
@@ -39,8 +44,8 @@ export async function createFestival(formData: FormData) {
         name,
         slug,
         description: description || null,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: parsedStart,
+        endDate: parsedEnd,
         location,
         region,
         priceFrom: priceFrom ? parseInt(priceFrom) : null,
@@ -54,7 +59,10 @@ export async function createFestival(formData: FormData) {
       },
     });
   } catch (error) {
-    throw new Error("Failed to create festival");
+    console.error("[createFestival] Prisma error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to create festival"
+    );
   }
 
   // Create artists from extraction if provided
@@ -75,8 +83,8 @@ export async function createFestival(formData: FormData) {
           },
         });
       }
-    } catch {
-      // Artist creation is best-effort, don't fail the whole creation
+    } catch (error) {
+      console.error("[createFestival] Artist creation error:", error);
     }
   }
 
@@ -139,7 +147,10 @@ export async function updateFestival(id: string, formData: FormData) {
       },
     });
   } catch (error) {
-    throw new Error("Failed to update festival");
+    console.error("[updateFestival] Prisma error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to update festival"
+    );
   }
 
   revalidatePath(`/admin/festivals/${id}`);
@@ -150,7 +161,10 @@ export async function deleteFestival(id: string) {
   try {
     await prisma.festival.delete({ where: { id } });
   } catch (error) {
-    throw new Error("Failed to delete festival");
+    console.error("[deleteFestival] Prisma error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to delete festival"
+    );
   }
   revalidatePath("/admin/festivals");
   redirect("/admin/festivals");

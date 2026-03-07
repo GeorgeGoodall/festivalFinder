@@ -18,6 +18,7 @@ export function SplitArtistSection({
 }) {
   const [names, setNames] = useState(parts);
   const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
   async function handleSplit() {
@@ -30,9 +31,11 @@ export function SplitArtistSection({
       return;
 
     setIsPending(true);
+    setError(null);
     try {
       await splitArtist(artistId, names);
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to split artist");
       setIsPending(false);
     }
   }
@@ -69,6 +72,7 @@ export function SplitArtistSection({
             </div>
           ))}
         </div>
+        {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
         <div className="flex items-center gap-2">
           <button
             onClick={handleSplit}
@@ -117,6 +121,7 @@ export function SplitArtistSection({
         ))}
       </div>
 
+      {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
       <div className="flex items-center gap-3">
         <button
           onClick={handleSplit}

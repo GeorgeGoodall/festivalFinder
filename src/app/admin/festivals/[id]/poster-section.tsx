@@ -178,11 +178,13 @@ export function PosterSection({ festivalId, posters }: PosterSectionProps) {
               key={poster.id}
               className="border rounded-lg overflow-hidden"
             >
-              <img
-                src={poster.imageUrl}
-                alt={getCategoryLabel(poster.category, poster.customCategory)}
-                className="w-full h-48 object-cover"
-              />
+              <div className="w-full h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
+                <img
+                  src={poster.imageUrl}
+                  alt={getCategoryLabel(poster.category, poster.customCategory)}
+                  className="w-full h-full object-contain"
+                />
+              </div>
               <div className="p-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium">
