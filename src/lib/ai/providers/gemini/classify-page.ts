@@ -5,7 +5,7 @@ import {
 } from "@google/generative-ai";
 import type { AiUsage } from "@/lib/scraping/scrape-usage";
 
-export type PageCategory = "lineup" | "info" | "poster_only" | "irrelevant";
+export type PageCategory = "lineup" | "info" | "about" | "poster_only" | "irrelevant";
 
 export interface ClassifyPageResult {
   category: PageCategory;
@@ -32,10 +32,11 @@ const model = genAI.getGenerativeModel({
               category: {
                 type: SchemaType.STRING,
                 format: "enum",
-                enum: ["lineup", "info", "poster_only", "irrelevant"],
+                enum: ["lineup", "info", "about", "poster_only", "irrelevant"],
                 description:
                   "lineup = page lists artist/band names as primary content. " +
                   "info = page contains festival dates, location, venue, description but not a lineup. " +
+                  "about = page contains festival description, social media links, camping info, accessibility, age restrictions, FAQs, or ticket purchase links but not a lineup. " +
                   "poster_only = page has no structured lineup or info text but likely contains poster images. " +
                   "irrelevant = none of the above.",
               },
