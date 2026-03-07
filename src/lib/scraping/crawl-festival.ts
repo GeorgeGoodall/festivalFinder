@@ -339,6 +339,7 @@ export async function crawlFestival(
         }
       } else if (classification.category === "about") {
         aboutContent.push({ url: page.url, text: page.text });
+        console.log(`[crawl] Routed "about" page: ${urlPathname(page.url)}`);
       } else if (classification.category === "info") {
         infoContent.push({ url: page.url, text: page.text });
       }
@@ -389,7 +390,7 @@ export async function crawlFestival(
   if (lineupContent.length > 0 || infoContent.length > 0) {
     emit({
       stage: "extracting",
-      message: `Extracting festival details from ${lineupContent.length + infoContent.length} page(s)...`,
+      message: `Extracting festival details from ${lineupContent.length + infoContent.length + aboutContent.length} page(s)...`,
       usage: tracker.getSummary(),
     });
 
