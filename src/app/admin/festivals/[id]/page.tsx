@@ -204,6 +204,34 @@ export default async function EditFestivalPage({
           </label>
         </div>
 
+        <div>
+          <label htmlFor="campingDetails" className="block text-sm font-medium text-gray-700">
+            Camping Details
+          </label>
+          <input
+            id="campingDetails"
+            name="campingDetails"
+            type="text"
+            defaultValue={festival.campingDetails ?? ""}
+            placeholder="e.g. glamping available, day tickets only"
+            className="mt-1 block w-full rounded border border-gray-300 px-3 py-2"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="ageRestriction" className="block text-sm font-medium text-gray-700">
+            Age Restriction
+          </label>
+          <input
+            id="ageRestriction"
+            name="ageRestriction"
+            type="text"
+            defaultValue={festival.ageRestriction ?? ""}
+            placeholder="e.g. 18+, family-friendly, all ages"
+            className="mt-1 block w-full rounded border border-gray-300 px-3 py-2"
+          />
+        </div>
+
         <div className="flex items-center gap-2">
           <input
             id="lineupPending"
@@ -244,6 +272,52 @@ export default async function EditFestivalPage({
               defaultValue={festival.ticketUrl ?? ""}
               className="mt-1 block w-full rounded border border-gray-300 px-3 py-2"
             />
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-medium text-gray-700 mb-3">Social Links</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="socialInstagram" className="block text-xs text-gray-600">Instagram</label>
+              <input
+                id="socialInstagram"
+                name="socialInstagram"
+                type="url"
+                defaultValue={festival.socialInstagram ?? ""}
+                className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="socialFacebook" className="block text-xs text-gray-600">Facebook</label>
+              <input
+                id="socialFacebook"
+                name="socialFacebook"
+                type="url"
+                defaultValue={festival.socialFacebook ?? ""}
+                className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="socialX" className="block text-xs text-gray-600">X (Twitter)</label>
+              <input
+                id="socialX"
+                name="socialX"
+                type="url"
+                defaultValue={festival.socialX ?? ""}
+                className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="socialTiktok" className="block text-xs text-gray-600">TikTok</label>
+              <input
+                id="socialTiktok"
+                name="socialTiktok"
+                type="url"
+                defaultValue={festival.socialTiktok ?? ""}
+                className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
           </div>
         </div>
 
@@ -331,6 +405,8 @@ export default async function EditFestivalPage({
                 <tr>
                   <th className="px-4 py-3 text-sm font-medium text-gray-700">Artist</th>
                   <th className="px-4 py-3 text-sm font-medium text-gray-700">Billing</th>
+                  <th className="px-4 py-3 text-sm font-medium text-gray-700">Genre</th>
+                  <th className="px-4 py-3 text-sm font-medium text-gray-700">Day / Stage</th>
                   <th className="px-4 py-3 text-sm font-medium text-gray-700">Actions</th>
                 </tr>
               </thead>
@@ -365,6 +441,12 @@ export default async function EditFestivalPage({
                           Save
                         </button>
                       </form>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {fa.artist.genre ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {[fa.day ? `Day ${fa.day}` : null, fa.stage].filter(Boolean).join(" · ") || "—"}
                     </td>
                     <td className="px-4 py-3">
                       <form
