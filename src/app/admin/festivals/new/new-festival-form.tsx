@@ -28,6 +28,8 @@ export function NewFestivalForm() {
   const [posterImageUrl, setPosterImageUrl] = useState<string | null>(null);
   const [lineupUrl, setLineupUrl] = useState("");
   const [posterPageUrl, setPosterPageUrl] = useState<string | null>(null);
+  const [lineupPending, setLineupPending] = useState(false);
+  const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
 
   function updateArtist(index: number, field: keyof Artist, value: string) {
     const updated = [...artists];
@@ -77,6 +79,8 @@ export function NewFestivalForm() {
             setPosterImageUrl(data.posterImageUrl);
             setLineupUrl(data.lineupUrl ?? "");
             setPosterPageUrl(data.posterPageUrl);
+            setLineupPending(data.lineupPending ?? false);
+            setLogoImageUrl(data.logoImageUrl ?? null);
             setShowForm(true);
             setExtracted(true);
           }}
@@ -128,6 +132,10 @@ export function NewFestivalForm() {
           )}
           {lineupUrl && (
             <input type="hidden" name="lineupUrl" value={lineupUrl} />
+          )}
+          <input type="hidden" name="lineupPending" value={String(lineupPending)} />
+          {logoImageUrl && (
+            <input type="hidden" name="logoImageUrl" value={logoImageUrl} />
           )}
           {artists.length > 0 && (
             <input

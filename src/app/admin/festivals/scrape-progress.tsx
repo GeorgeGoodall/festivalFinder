@@ -25,11 +25,14 @@ interface CrawlCompleteData {
     region: string;
     website_url: string;
     artists: Array<{ name: string; billing: "headliner" | "support" }>;
+    lineup_pending?: boolean;
   };
   source: "text" | "poster";
   lineupUrl: string | null;
   posterPageUrl: string | null;
   posterImageUrl: string | null;
+  lineupPending: boolean;
+  logoImageUrl: string | null;
   usage: {
     totalCalls: number;
     inputTokens: number;
