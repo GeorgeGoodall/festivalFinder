@@ -1,9 +1,40 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { supabaseAdmin } from "@/lib/supabase";
 import { slugify } from "@/lib/utils";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+
+async function uploadImageFromUrl(src: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    let res: Response;
+    try {
+      res = await fetch(src, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.startsWith("image/")) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const ext = contentType.includes("png")
+      ? ".png"
+      : contentType.includes("webp")
+      ? ".webp"
+      : ".jpg";
+    const filename = `crawled-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+    const { error } = await supabaseAdmin.storage
+      .from("posters")
+      .upload(filename, buffer, { contentType, upsert: false });
+    if (error) return null;
+    return supabaseAdmin.storage.from("posters").getPublicUrl(filename).data.publicUrl;
+  } catch {
+    return null;
+  }
+}
 
 export async function createFestival(formData: FormData) {
   const name = formData.get("name") as string;
@@ -17,11 +48,14 @@ export async function createFestival(formData: FormData) {
   const hasCamping = formData.get("hasCamping") === "on";
   const websiteUrl = formData.get("websiteUrl") as string;
   const ticketUrl = formData.get("ticketUrl") as string;
-  const posterImageUrl = formData.get("posterImageUrl") as string;
+  const selectedPosterSrcsRaw = formData.get("selectedPosterSrcs") as string | null;
+  const selectedLogoSrc = formData.get("selectedLogoSrc") as string | null;
+  const selectedPosterSrcs: string[] = selectedPosterSrcsRaw
+    ? JSON.parse(selectedPosterSrcsRaw)
+    : [];
   const artistsJson = formData.get("artists") as string;
   const lineupUrl = formData.get("lineupUrl") as string;
   const posterPageUrl = formData.get("posterPageUrl") as string | null;
-  const logoImageUrl = formData.get("logoImageUrl") as string | null;
   const lineupPendingStr = formData.get("lineupPending") as string | null;
   const lineupPending = lineupPendingStr === "true";
 
@@ -92,31 +126,44 @@ export async function createFestival(formData: FormData) {
     }
   }
 
-  // Create FestivalPoster record if a poster was uploaded
-  if (posterImageUrl) {
-    await prisma.festivalPoster.create({
-      data: {
-        festivalId: festival.id,
-        category: "full_lineup",
-        imageUrl: posterImageUrl,
-        version: 1,
-      },
-    });
-  }
-
-  // Create FestivalPoster record for the logo if one was captured
-  if (logoImageUrl) {
+  // Upload and create FestivalPoster records for selected lineup posters
+  for (const src of selectedPosterSrcs) {
     try {
+      const uploadedUrl = await uploadImageFromUrl(src);
+      if (!uploadedUrl) continue;
       await prisma.festivalPoster.create({
         data: {
           festivalId: festival.id,
-          category: "logo",
-          imageUrl: logoImageUrl,
+          category: "full_lineup",
+          imageUrl: uploadedUrl,
           version: 1,
         },
       });
     } catch (err) {
-      console.error("[createFestival] Logo poster create failed:", err);
+      console.error("[createFestival] Poster upload failed:", err);
+    }
+  }
+
+  // Upload and create FestivalPoster record for selected logo
+  if (selectedLogoSrc) {
+    try {
+      // If it's already a Supabase URL (uploaded during crawl), use directly
+      const supabaseBase = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+      const logoUrl = supabaseBase && selectedLogoSrc.startsWith(supabaseBase)
+        ? selectedLogoSrc
+        : await uploadImageFromUrl(selectedLogoSrc);
+      if (logoUrl) {
+        await prisma.festivalPoster.create({
+          data: {
+            festivalId: festival.id,
+            category: "logo",
+            imageUrl: logoUrl,
+            version: 1,
+          },
+        });
+      }
+    } catch (err) {
+      console.error("[createFestival] Logo upload failed:", err);
     }
   }
 
