@@ -21,6 +21,9 @@ export async function createFestival(formData: FormData) {
   const artistsJson = formData.get("artists") as string;
   const lineupUrl = formData.get("lineupUrl") as string;
   const posterPageUrl = formData.get("posterPageUrl") as string | null;
+  const logoImageUrl = formData.get("logoImageUrl") as string | null;
+  const lineupPendingStr = formData.get("lineupPending") as string | null;
+  const lineupPending = lineupPendingStr === "true";
 
   if (!name || !startDate || !endDate || !location || !region) {
     throw new Error("Missing required fields");
@@ -55,6 +58,7 @@ export async function createFestival(formData: FormData) {
         ticketUrl: ticketUrl || null,
         lineupUrl: lineupUrl || null,
         posterPageUrl: posterPageUrl || null,
+        lineupPending,
         status: formData.get("publish") === "true" ? "published" : "draft",
       },
     });
@@ -98,6 +102,22 @@ export async function createFestival(formData: FormData) {
         version: 1,
       },
     });
+  }
+
+  // Create FestivalPoster record for the logo if one was captured
+  if (logoImageUrl) {
+    try {
+      await prisma.festivalPoster.create({
+        data: {
+          festivalId: festival.id,
+          category: "logo",
+          imageUrl: logoImageUrl,
+          version: 1,
+        },
+      });
+    } catch (err) {
+      console.error("[createFestival] Logo poster create failed:", err);
+    }
   }
 
   if (formData.get("publish") === "true") {
