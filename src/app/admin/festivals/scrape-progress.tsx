@@ -13,7 +13,7 @@ interface PageNode {
   url: string;
   path: string;
   title?: string;
-  category?: "lineup" | "info" | "poster_only" | "irrelevant";
+  category?: "lineup" | "info" | "about" | "poster_only" | "irrelevant";
   children?: PageNode[];
 }
 
@@ -34,7 +34,13 @@ interface CrawlCompleteData {
     location: string;
     region: string;
     website_url: string;
-    artists: Array<{ name: string; billing: "headliner" | "support" }>;
+    description?: string;
+    ticket_url?: string;
+    social_links?: { instagram?: string; facebook?: string; x?: string; tiktok?: string };
+    has_camping?: boolean;
+    camping_details?: string;
+    age_restriction?: string;
+    artists: Array<{ name: string; billing: "headliner" | "support"; genre?: string; day?: number; stage?: string }>;
     lineup_pending?: boolean;
   };
   source: "text" | "poster" | "text+poster";
@@ -62,6 +68,7 @@ const CATEGORY_STYLES: Record<
 > = {
   lineup: { label: "[L]", className: "text-green-600" },
   info: { label: "[I]", className: "text-blue-600" },
+  about: { label: "[A]", className: "text-orange-500" },
   poster_only: { label: "[P]", className: "text-purple-600" },
   irrelevant: { label: "[-]", className: "text-gray-400" },
   pending: { label: "[.]", className: "text-gray-300" },
@@ -303,6 +310,9 @@ export function ScrapeProgress({
             </span>
             <span>
               <span className="font-bold text-blue-600">[I]</span> info
+            </span>
+            <span>
+              <span className="font-bold text-orange-500">[A]</span> about
             </span>
             <span>
               <span className="font-bold text-purple-600">[P]</span> poster
