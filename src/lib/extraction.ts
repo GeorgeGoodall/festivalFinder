@@ -44,6 +44,8 @@ export interface ExtractionResponse {
   usage: ExtractionUsage;
 }
 
+// Poster extraction intentionally uses a minimal schema (name+billing only).
+// Richer fields (description, social_links, etc.) are only extracted via text scraping.
 const extractionTool: Anthropic.Messages.Tool = {
   name: "extract_festival_info",
   description: "Extract structured festival information from a poster image",
