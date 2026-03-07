@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node -e \"require('fs').rmSync('.next/cache/turbopack', {recursive:true,force:true})\" && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:generate": "prisma generate",
+    "db:generate": "prisma generate && node -e \"require('fs').rmSync('.next/cache/turbopack', {recursive:true,force:true})\"",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -21,6 +21,7 @@
     "@supabase/supabase-js": "^2.98.0",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
+    "image-size": "^2.0.2",
     "next": "16.1.6",
     "next-auth": "^4.24.13",
     "pg": "^8.20.0",
