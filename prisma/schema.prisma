@@ -30,6 +30,7 @@ enum PosterCategory {
   dance_electronic
   acoustic_unplugged
   other
+  logo
 }
 
 enum SubmissionStatus {
@@ -58,6 +59,7 @@ model Festival {
   lineupHash     String?        @map("lineup_hash")
   posterPageUrl  String?        @map("poster_page_url")
   lastScrapedAt  DateTime?      @map("last_scraped_at")
+  lineupPending  Boolean        @default(false) @map("lineup_pending")
   status         FestivalStatus @default(draft)
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
