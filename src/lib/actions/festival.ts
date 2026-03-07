@@ -50,9 +50,14 @@ export async function createFestival(formData: FormData) {
   const ticketUrl = formData.get("ticketUrl") as string;
   const selectedPosterSrcsRaw = formData.get("selectedPosterSrcs") as string | null;
   const selectedLogoSrc = formData.get("selectedLogoSrc") as string | null;
-  const selectedPosterSrcs: string[] = selectedPosterSrcsRaw
-    ? JSON.parse(selectedPosterSrcsRaw)
-    : [];
+  let selectedPosterSrcs: string[] = [];
+  if (selectedPosterSrcsRaw) {
+    try {
+      selectedPosterSrcs = JSON.parse(selectedPosterSrcsRaw);
+    } catch {
+      console.error("[createFestival] Failed to parse selectedPosterSrcs");
+    }
+  }
   const artistsJson = formData.get("artists") as string;
   const lineupUrl = formData.get("lineupUrl") as string;
   const posterPageUrl = formData.get("posterPageUrl") as string | null;
