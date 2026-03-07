@@ -2,13 +2,34 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
+export interface SocialLinks {
+  instagram?: string;
+  facebook?: string;
+  x?: string;
+  tiktok?: string;
+}
+
+export interface ExtractedArtist {
+  name: string;
+  billing: "headliner" | "support";
+  genre?: string;
+  day?: number;
+  stage?: string;
+}
+
 export interface ExtractionResult {
   festival_name: string;
   dates: { start: string; end: string };
   location: string;
   region: string;
   website_url: string;
-  artists: Array<{ name: string; billing: "headliner" | "support" }>;
+  description?: string;
+  ticket_url?: string;
+  social_links?: SocialLinks;
+  has_camping?: boolean;
+  camping_details?: string;
+  age_restriction?: string;
+  artists: ExtractedArtist[];
   lineup_pending?: boolean;
 }
 
