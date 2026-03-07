@@ -60,13 +60,20 @@ model Festival {
   posterPageUrl  String?        @map("poster_page_url")
   lastScrapedAt  DateTime?      @map("last_scraped_at")
   lineupPending  Boolean        @default(false) @map("lineup_pending")
+  socialInstagram String? @map("social_instagram")
+  socialFacebook  String? @map("social_facebook")
+  socialX         String? @map("social_x")
+  socialTiktok    String? @map("social_tiktok")
+  campingDetails  String? @map("camping_details")
+  ageRestriction  String? @map("age_restriction")
   status         FestivalStatus @default(draft)
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
-  artists   FestivalArtist[]
-  posters   FestivalPoster[]
-  usageLogs ApiUsageLog[]
+  artists    FestivalArtist[]
+  posters    FestivalPoster[]
+  usageLogs  ApiUsageLog[]
+  scrapeLogs ScrapeLog[]
 
   @@map("festivals")
 }
@@ -89,6 +96,8 @@ model FestivalArtist {
   festivalId String  @map("festival_id")
   artistId   String  @map("artist_id")
   billing    Billing @default(support)
+  day   Int?
+  stage String?
 
   festival Festival @relation(fields: [festivalId], references: [id], onDelete: Cascade)
   artist   Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
@@ -130,6 +139,27 @@ model AdminUser {
   name         String?
 
   @@map("admin_users")
+}
+
+model ScrapeLog {
+  id            String   @id @default(cuid())
+  festivalId    String?  @map("festival_id")
+  url           String
+  scrapedAt     DateTime @default(now()) @map("scraped_at")
+  source        String?
+  status        String
+  pagesScraped  Int?     @map("pages_scraped")
+  artistsFound  Int?     @map("artists_found")
+  artistsAdded  Int?     @map("artists_added")
+  lineupUrl     String?  @map("lineup_url")
+  lineupPending Boolean  @default(false) @map("lineup_pending")
+  inputTokens   Int?     @map("input_tokens")
+  outputTokens  Int?     @map("output_tokens")
+  errorMessage  String?  @map("error_message")
+
+  festival Festival? @relation(fields: [festivalId], references: [id], onDelete: SetNull)
+
+  @@map("scrape_logs")
 }
 
 model ApiUsageLog {
