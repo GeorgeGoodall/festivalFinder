@@ -47,6 +47,35 @@ const extractionTool: Anthropic.Messages.Tool = {
         type: "string",
         description: "Website URL if found in content, or empty string",
       },
+      description: {
+        type: "string",
+        description: "Short 2-3 sentence description of the festival, or empty string",
+      },
+      ticket_url: {
+        type: "string",
+        description: "URL of the ticket purchase page, or empty string",
+      },
+      social_links: {
+        type: "object" as const,
+        properties: {
+          instagram: { type: "string", description: "Instagram profile URL, or empty string" },
+          facebook: { type: "string", description: "Facebook page URL, or empty string" },
+          x: { type: "string", description: "X (Twitter) profile URL, or empty string" },
+          tiktok: { type: "string", description: "TikTok profile URL, or empty string" },
+        },
+      },
+      has_camping: {
+        type: "boolean" as const,
+        description: "true if camping is available at the festival",
+      },
+      camping_details: {
+        type: "string",
+        description: "Extra camping info e.g. 'glamping available, day tickets only', or empty string",
+      },
+      age_restriction: {
+        type: "string",
+        description: "e.g. '18+', 'family-friendly', 'all ages', or empty string",
+      },
       artists: {
         type: "array",
         items: {
@@ -58,6 +87,18 @@ const extractionTool: Anthropic.Messages.Tool = {
               enum: ["headliner", "support"],
               description:
                 "headliner = largest/most prominent names, support = all other artists",
+            },
+            genre: {
+              type: "string",
+              description: "Lowercase genre tag e.g. 'rock', 'electronic', 'folk', 'hip-hop'. Leave empty string if unclear.",
+            },
+            day: {
+              type: "number",
+              description: "Day number (1, 2, 3...) this artist performs. Only set if explicitly stated in the lineup.",
+            },
+            stage: {
+              type: "string",
+              description: "Stage name e.g. 'Main Stage', 'The Barn'. Only set if explicitly stated.",
             },
           },
           required: ["name", "billing"],
@@ -85,12 +126,16 @@ const extractionTool: Anthropic.Messages.Tool = {
 export async function extractFestivalFromText(
   lineupContent: { url: string; text: string }[],
   infoContent: { url: string; text: string }[],
-  websiteUrl: string
+  websiteUrl: string,
+  aboutContent: { url: string; text: string }[] = []
 ): Promise<TextExtractionResponse> {
-  // Assemble content: info pages first, then lineup pages
+  // Assemble content: info pages first, then about pages, then lineup pages
   const parts: string[] = [];
   for (const page of infoContent) {
     parts.push(`--- Source: ${page.url} ---\n${page.text}`);
+  }
+  for (const page of aboutContent) {
+    parts.push(`--- Source (about): ${page.url} ---\n${page.text}`);
   }
   for (const page of lineupContent) {
     parts.push(`--- Source: ${page.url} ---\n${page.text}`);
@@ -122,6 +167,14 @@ Rules:
 - If dates are unclear, use your best estimate. If year is missing, assume 2026
 - If any field is unclear, use an empty string
 - Set lineup_pending to true if the site says the lineup has not yet been announced (e.g. "coming soon", "TBA", "to be announced", "lineup coming soon"). Set to false if artists are listed.
+- Extract a short (2-3 sentence) description of the festival from about/info content — summarise what kind of festival it is, where and when
+- Extract ticket_url if a dedicated ticket purchase page is linked
+- Extract social_links: full URLs only (not handles), leave empty string if not found
+- Set has_camping to true if the festival mentions camping is available
+- Extract camping_details for extra detail beyond yes/no (e.g. "glamping available")
+- Extract age_restriction if stated (e.g. "18+", "family-friendly")
+- For each artist, set genre if clearly indicated (e.g. "DJ", listed under a genre section). Use simple lowercase tags.
+- Set artist day and stage ONLY when explicitly stated in lineup content. Do not infer.
 
 Website content:
 
