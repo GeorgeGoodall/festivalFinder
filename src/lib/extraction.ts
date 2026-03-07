@@ -9,6 +9,7 @@ export interface ExtractionResult {
   region: string;
   website_url: string;
   artists: Array<{ name: string; billing: "headliner" | "support" }>;
+  lineup_pending?: boolean;
 }
 
 export interface ExtractionUsage {
