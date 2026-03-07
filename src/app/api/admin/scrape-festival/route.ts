@@ -106,14 +106,18 @@ export async function POST(req: NextRequest) {
           });
 
           if (result.logoImageUrl) {
-            await prisma.festivalPoster.create({
-              data: {
-                festivalId: body.festivalId,
-                category: "logo",
-                imageUrl: result.logoImageUrl,
-                version: 1,
-              },
-            });
+            try {
+              await prisma.festivalPoster.create({
+                data: {
+                  festivalId: body.festivalId,
+                  category: "logo",
+                  imageUrl: result.logoImageUrl,
+                  version: 1,
+                },
+              });
+            } catch (err) {
+              console.error("[scrape-festival] Logo poster create failed:", err);
+            }
           }
         }
 
