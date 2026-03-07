@@ -64,6 +64,11 @@ const extractionTool: Anthropic.Messages.Tool = {
         },
         description: "All artists/bands identified across the pages",
       },
+      lineup_pending: {
+        type: "boolean" as const,
+        description:
+          "true if the festival lineup has not been announced yet — e.g. 'lineup coming soon', 'artists TBA', 'acts to be announced', 'lineup to follow'. false if artists are listed.",
+      },
     },
     required: [
       "festival_name",
@@ -72,6 +77,7 @@ const extractionTool: Anthropic.Messages.Tool = {
       "region",
       "website_url",
       "artists",
+      "lineup_pending",
     ],
   },
 };
@@ -115,6 +121,7 @@ Rules:
 - If an artist name includes a featuring/collaboration (e.g. "Artist A feat. Artist B", "Artist A ft. Artist B", "Artist A x Artist B", "Artist A & Artist B", "Artist A b2b Artist B"), split them into SEPARATE artist entries with the same billing level
 - If dates are unclear, use your best estimate. If year is missing, assume 2026
 - If any field is unclear, use an empty string
+- Set lineup_pending to true if the site says the lineup has not yet been announced (e.g. "coming soon", "TBA", "to be announced", "lineup coming soon"). Set to false if artists are listed.
 
 Website content:
 
