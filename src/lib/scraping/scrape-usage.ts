@@ -9,6 +9,7 @@ export interface UsageSummary {
   filterLinksCalls: number;
   classifyPageCalls: number;
   extractionCalls: number;
+  inferRegionCalls: number;
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
@@ -71,6 +72,7 @@ export class CrawlUsageTracker {
       filterLinksCalls: this.filterLinksUsages.length,
       classifyPageCalls: this.classifyPageUsages.length,
       extractionCalls: this.extractionUsages.length,
+      inferRegionCalls: this.inferRegionUsages.length,
       inputTokens,
       outputTokens,
       costUsd: Math.round(costUsd * 1_000_000) / 1_000_000,
