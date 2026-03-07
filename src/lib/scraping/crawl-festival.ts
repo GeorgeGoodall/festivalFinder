@@ -1,3 +1,4 @@
+import { imageSize } from "image-size";
 import { scrapeUrl, normalizeUrl } from "./scrape-url";
 import type { LinkWithContext, ImageCandidate } from "./scrape-url";
 import { filterLinksForFestival } from "@/lib/ai/filter-links";
@@ -8,6 +9,16 @@ import { CrawlUsageTracker, type UsageSummary } from "./scrape-usage";
 import { supabaseAdmin } from "@/lib/supabase";
 import { inferRegionFromLocation } from "@/lib/ai/infer-region";
 import { UK_REGIONS } from "@/lib/constants";
+
+// ---------------------------------------------------------------------------
+// Internal image bucket type
+// ---------------------------------------------------------------------------
+
+interface PosterCandidate {
+  img: ImageCandidate;
+  sourcePage: string;
+  sourceClassification: string;
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -27,6 +38,7 @@ export type CrawlStage =
   | "crawling"
   | "classifying"
   | "extracting"
+  | "poster_search"
   | "poster_fallback"
   | "complete"
   | "error";
@@ -116,10 +128,10 @@ export async function crawlFestival(
   // Content collectors
   const lineupContent: { url: string; text: string }[] = [];
   const infoContent: { url: string; text: string }[] = [];
-  const posterPageImages: ImageCandidate[] = [];   // from poster_only pages (best)
-  const lineupImages: ImageCandidate[] = [];        // from lineup pages
-  const fallbackImages: ImageCandidate[] = [];      // <img> elements from homepage + info/other pages
-  let ogImage: ImageCandidate | null = null;        // og:image fallback (worst)
+  const posterPageImages: PosterCandidate[] = [];   // from poster_only pages (best)
+  const lineupImages: PosterCandidate[] = [];        // from lineup pages
+  const fallbackImages: PosterCandidate[] = [];      // <img> elements from homepage + info/other pages
+  let ogImage: PosterCandidate | null = null;        // og:image fallback (worst)
   let discoveredLineupUrl: string | null = null;
   let discoveredPosterPageUrl: string | null = null;
 
@@ -156,13 +168,15 @@ export async function crawlFestival(
   infoContent.push({ url: homepage.url, text: homepage.text });
 
   // Collect images from homepage — split og:image from real <img> elements
+  const homepagePath = (() => { try { return new URL(homepage.url).pathname; } catch { return homepage.url; } })();
   for (const img of homepage.images) {
     if (img.alt === "og:image") {
-      if (!ogImage) ogImage = img;
+      if (!ogImage) ogImage = { img, sourcePage: homepage.url, sourceClassification: "og" };
     } else {
-      fallbackImages.push(img);
+      fallbackImages.push({ img, sourcePage: homepage.url, sourceClassification: "fallback" });
     }
   }
+  console.log(`[poster] Homepage (${homepagePath}): ${homepage.images.filter(i => i.alt !== "og:image").length} image(s) collected`);
 
   // -----------------------------------------------------------------------
   // 2. Seed BFS queue
@@ -287,18 +301,26 @@ export async function crawlFestival(
       }
 
       // Route images to priority buckets based on page classification
-      for (const img of page.images) {
-        if (img.alt === "og:image") {
-          if (!ogImage) ogImage = img;
-          continue;
-        }
+      const pagePath = (() => { try { return new URL(page.url).pathname; } catch { return page.url; } })();
+      const nonOgImages = page.images.filter(i => i.alt !== "og:image");
+      const ogImgs = page.images.filter(i => i.alt === "og:image");
+
+      for (const img of ogImgs) {
+        if (!ogImage) ogImage = { img, sourcePage: page.url, sourceClassification: "og" };
+      }
+
+      for (const img of nonOgImages) {
         if (classification.category === "poster_only") {
-          posterPageImages.push(img);
+          posterPageImages.push({ img, sourcePage: page.url, sourceClassification: "poster_only" });
         } else if (classification.category === "lineup") {
-          lineupImages.push(img);
+          lineupImages.push({ img, sourcePage: page.url, sourceClassification: "lineup" });
         } else {
-          fallbackImages.push(img);
+          fallbackImages.push({ img, sourcePage: page.url, sourceClassification: "fallback" });
         }
+      }
+
+      if (nonOgImages.length > 0) {
+        console.log(`[poster] Page "${pagePath}" (${classification.category}): ${nonOgImages.length} image(s)`, nonOgImages.map(i => i.src));
       }
 
       // Enqueue child links if within depth limit
@@ -319,7 +341,7 @@ export async function crawlFestival(
   let extraction: ExtractionResult;
   let source: "text" | "poster";
 
-  const bestImage =
+  const bestCandidateForExtraction =
     posterPageImages[0] ?? lineupImages[0] ?? fallbackImages[0] ?? ogImage;
 
   if (lineupContent.length > 0 || infoContent.length > 0) {
@@ -337,14 +359,14 @@ export async function crawlFestival(
     tracker.addExtraction(textResult.usage);
     extraction = textResult.extraction;
     source = "text";
-  } else if (bestImage) {
+  } else if (bestCandidateForExtraction) {
     emit({
       stage: "poster_fallback",
       message: "No HTML lineup found. Extracting from poster image...",
       usage: tracker.getSummary(),
     });
 
-    const posterResult = await extractFromPoster(bestImage.src);
+    const posterResult = await extractFromPoster(bestCandidateForExtraction.img.src);
     tracker.addExtraction(posterResult.usage);
     extraction = posterResult.extraction;
     source = "poster";
@@ -381,47 +403,106 @@ export async function crawlFestival(
   }
 
   // -----------------------------------------------------------------------
-  // 5. Poster storage
+  // 5. Poster storage — iterate candidates in priority order, pick first
+  //    that passes size (≥50KB) and dimension (≥400×400px) checks
   // -----------------------------------------------------------------------
 
-  let posterImageUrl: string | null = bestImage?.src ?? null;
+  const MIN_BYTES = 50 * 1024;
+  const MIN_DIM = 400;
 
-  if (bestImage) {
+  const allCandidates: PosterCandidate[] = [
+    ...posterPageImages,
+    ...lineupImages,
+    ...fallbackImages,
+    ...(ogImage ? [ogImage] : []),
+  ];
+
+  console.log(`[poster] ${allCandidates.length} total candidate(s) across all buckets`);
+  emit({
+    stage: "poster_search",
+    message: `Searching for poster — ${allCandidates.length} candidate image(s) found`,
+    usage: tracker.getSummary(),
+  });
+
+  let posterImageUrl: string | null = null;
+
+  for (const candidate of allCandidates) {
+    const src = candidate.img.src;
+    const srcPath = (() => { try { return new URL(src).pathname; } catch { return src; } })();
+    const pagePathLabel = (() => { try { return new URL(candidate.sourcePage).pathname; } catch { return candidate.sourcePage; } })();
+
+    console.log(`[poster] Checking "${srcPath}" from ${pagePathLabel} (${candidate.sourceClassification})`);
+
+    let imgResponse: Response;
     try {
-      const imgResponse = await fetch(bestImage.src);
-      const contentType =
-        imgResponse.headers.get("content-type") || "";
-
-      if (!contentType.startsWith("image/")) {
-        console.warn(
-          `[crawlFestival] Skipping poster upload — non-image content-type: ${contentType}`
-        );
-        // Leave posterImageUrl as the external src fallback
-      } else {
-        const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
-        const ext = getExtensionFromUrl(bestImage.src);
-        const filename = `crawled-${Date.now()}${ext}`;
-
-        const { error } = await supabaseAdmin.storage
-          .from("posters")
-          .upload(filename, imgBuffer, {
-            contentType,
-            upsert: false,
-          });
-
-        if (!error) {
-          const {
-            data: { publicUrl },
-          } = supabaseAdmin.storage
-            .from("posters")
-            .getPublicUrl(filename);
-          posterImageUrl = publicUrl;
-        }
-      }
+      imgResponse = await fetch(src);
     } catch (err) {
-      console.error("[crawlFestival] Poster upload to Supabase failed:", err);
-      // Non-fatal: keep external URL as fallback
+      console.warn(`[poster] Skipping "${srcPath}": fetch failed —`, err);
+      continue;
     }
+
+    const contentType = imgResponse.headers.get("content-type") || "";
+    if (!contentType.startsWith("image/")) {
+      console.warn(`[poster] Skipping "${srcPath}": non-image content-type "${contentType}"`);
+      continue;
+    }
+
+    const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
+
+    if (imgBuffer.length < MIN_BYTES) {
+      console.log(`[poster] Skipping "${srcPath}": too small (${Math.round(imgBuffer.length / 1024)}KB < 50KB)`);
+      continue;
+    }
+
+    let dims: { width?: number; height?: number } = {};
+    try {
+      dims = imageSize(imgBuffer);
+    } catch {
+      console.warn(`[poster] Could not read dimensions for "${srcPath}", skipping`);
+      continue;
+    }
+
+    const w = dims.width ?? 0;
+    const h = dims.height ?? 0;
+    if (w < MIN_DIM || h < MIN_DIM) {
+      console.log(`[poster] Skipping "${srcPath}": dimensions too small (${w}×${h} < ${MIN_DIM}×${MIN_DIM})`);
+      continue;
+    }
+
+    console.log(`[poster] Selected "${srcPath}" (${Math.round(imgBuffer.length / 1024)}KB, ${w}×${h}) from ${pagePathLabel}`);
+    emit({
+      stage: "poster_search",
+      message: `Selected poster from ${pagePathLabel} (${Math.round(imgBuffer.length / 1024)}KB, ${w}×${h}px)`,
+      usage: tracker.getSummary(),
+    });
+
+    const ext = getExtensionFromUrl(src);
+    const filename = `crawled-${Date.now()}${ext}`;
+
+    const { error } = await supabaseAdmin.storage
+      .from("posters")
+      .upload(filename, imgBuffer, { contentType, upsert: false });
+
+    if (!error) {
+      const { data: { publicUrl } } = supabaseAdmin.storage
+        .from("posters")
+        .getPublicUrl(filename);
+      posterImageUrl = publicUrl;
+    } else {
+      console.error("[poster] Supabase upload failed:", error);
+    }
+
+    break;
+  }
+
+  if (!posterImageUrl && allCandidates.length > 0) {
+    posterImageUrl = allCandidates[0].img.src;
+    console.warn("[poster] No candidate passed quality checks — using external URL as fallback:", posterImageUrl);
+    emit({
+      stage: "poster_search",
+      message: "No suitable poster image found — using external URL as fallback",
+      usage: tracker.getSummary(),
+    });
   }
 
   // -----------------------------------------------------------------------
