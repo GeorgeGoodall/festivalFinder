@@ -52,7 +52,14 @@ export default async function EditFestivalPage({
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Edit Festival</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">Edit Festival</h1>
+          {festival.lineupPending && (
+            <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-1 rounded-full border border-yellow-300">
+              Lineup Pending
+            </span>
+          )}
+        </div>
         <form action={deleteAction}>
           <button
             type="submit"
