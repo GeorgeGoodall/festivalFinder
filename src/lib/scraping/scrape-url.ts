@@ -55,6 +55,7 @@ export interface ScrapeResult {
   links: LinkWithContext[];
   images: ImageCandidate[];
   title: string;
+  faviconUrl: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -181,6 +182,22 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
     }
   });
 
+  // --- Favicon ---
+  let faviconUrl: string | null = null;
+  const appleIconHref = $('link[rel="apple-touch-icon"]').first().attr("href");
+  const pngIconHref = $('link[rel="icon"][type="image/png"]').first().attr("href");
+  const genericIconHref =
+    $('link[rel="icon"]').first().attr("href") ||
+    $('link[rel="shortcut icon"]').first().attr("href");
+  const faviconHref = appleIconHref || pngIconHref || genericIconHref;
+  if (faviconHref) {
+    try {
+      faviconUrl = new URL(faviconHref, url).toString();
+    } catch {
+      // ignore invalid href
+    }
+  }
+
   // --- Images ---
   const images: ImageCandidate[] = [];
   const seenSrc = new Set<string>();
@@ -282,5 +299,5 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  return { url, text, jsonLd, links, images, title };
+  return { url, text, jsonLd, links, images, title, faviconUrl };
 }
