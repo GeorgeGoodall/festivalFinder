@@ -148,6 +148,7 @@ export async function crawlFestival(
   // Content collectors
   const lineupContent: { url: string; text: string }[] = [];
   const infoContent: { url: string; text: string }[] = [];
+  const aboutContent: { url: string; text: string }[] = [];
   const posterPageImages: PosterCandidate[] = [];   // from poster_only pages (best)
   const lineupImages: PosterCandidate[] = [];        // from lineup pages
   const fallbackImages: PosterCandidate[] = [];      // <img> elements from homepage + info/other pages
@@ -336,6 +337,8 @@ export async function crawlFestival(
         if (!discoveredPosterPageUrl) {
           discoveredPosterPageUrl = page.url;
         }
+      } else if (classification.category === "about") {
+        aboutContent.push({ url: page.url, text: page.text });
       } else if (classification.category === "info") {
         infoContent.push({ url: page.url, text: page.text });
       }
@@ -393,7 +396,8 @@ export async function crawlFestival(
     const textResult = await extractFestivalFromText(
       lineupContent,
       infoContent,
-      startUrl
+      startUrl,
+      aboutContent,
     );
     tracker.addExtraction(textResult.usage);
     extraction = textResult.extraction;
