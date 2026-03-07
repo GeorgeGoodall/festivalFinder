@@ -118,7 +118,7 @@ export async function crawlFestival(
   const infoContent: { url: string; text: string }[] = [];
   const posterPageImages: ImageCandidate[] = [];   // from poster_only pages (best)
   const lineupImages: ImageCandidate[] = [];        // from lineup pages
-  const homepageImages: ImageCandidate[] = [];      // <img> elements from homepage
+  const fallbackImages: ImageCandidate[] = [];      // <img> elements from homepage + info/other pages
   let ogImage: ImageCandidate | null = null;        // og:image fallback (worst)
   let discoveredLineupUrl: string | null = null;
   let discoveredPosterPageUrl: string | null = null;
@@ -158,9 +158,9 @@ export async function crawlFestival(
   // Collect images from homepage — split og:image from real <img> elements
   for (const img of homepage.images) {
     if (img.alt === "og:image") {
-      ogImage = img;
+      if (!ogImage) ogImage = img;
     } else {
-      homepageImages.push(img);
+      fallbackImages.push(img);
     }
   }
 
@@ -289,7 +289,7 @@ export async function crawlFestival(
       // Route images to priority buckets based on page classification
       for (const img of page.images) {
         if (img.alt === "og:image") {
-          ogImage = img;
+          if (!ogImage) ogImage = img;
           continue;
         }
         if (classification.category === "poster_only") {
@@ -297,7 +297,7 @@ export async function crawlFestival(
         } else if (classification.category === "lineup") {
           lineupImages.push(img);
         } else {
-          homepageImages.push(img);
+          fallbackImages.push(img);
         }
       }
 
@@ -319,8 +319,8 @@ export async function crawlFestival(
   let extraction: ExtractionResult;
   let source: "text" | "poster";
 
-  const bestImageForExtraction =
-    posterPageImages[0] ?? lineupImages[0] ?? homepageImages[0] ?? ogImage ?? null;
+  const bestImage =
+    posterPageImages[0] ?? lineupImages[0] ?? fallbackImages[0] ?? ogImage;
 
   if (lineupContent.length > 0 || infoContent.length > 0) {
     emit({
@@ -337,14 +337,14 @@ export async function crawlFestival(
     tracker.addExtraction(textResult.usage);
     extraction = textResult.extraction;
     source = "text";
-  } else if (bestImageForExtraction) {
+  } else if (bestImage) {
     emit({
       stage: "poster_fallback",
       message: "No HTML lineup found. Extracting from poster image...",
       usage: tracker.getSummary(),
     });
 
-    const posterResult = await extractFromPoster(bestImageForExtraction.src);
+    const posterResult = await extractFromPoster(bestImage.src);
     tracker.addExtraction(posterResult.usage);
     extraction = posterResult.extraction;
     source = "poster";
@@ -383,9 +383,6 @@ export async function crawlFestival(
   // -----------------------------------------------------------------------
   // 5. Poster storage
   // -----------------------------------------------------------------------
-
-  const bestImage =
-    posterPageImages[0] ?? lineupImages[0] ?? homepageImages[0] ?? ogImage ?? null;
 
   let posterImageUrl: string | null = bestImage?.src ?? null;
 
