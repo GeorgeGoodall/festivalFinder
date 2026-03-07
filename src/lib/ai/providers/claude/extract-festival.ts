@@ -173,7 +173,7 @@ Rules:
 - Set has_camping to true if the festival mentions camping is available
 - Extract camping_details for extra detail beyond yes/no (e.g. "glamping available")
 - Extract age_restriction if stated (e.g. "18+", "family-friendly")
-- For each artist, set genre if clearly indicated (e.g. "DJ", listed under a genre section). Use simple lowercase tags.
+- For each artist, set genre if clearly indicated (e.g. "jazz artist", "DJ", listed under a genre section). Use simple lowercase tags.
 - Set artist day and stage ONLY when explicitly stated in lineup content. Do not infer.
 
 Website content:
