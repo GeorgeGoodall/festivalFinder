@@ -40,6 +40,7 @@ export function NewFestivalForm() {
   const [deepScrapeUrl, setDeepScrapeUrl] = useState("");
   const [deepScraping, setDeepScraping] = useState(false);
   const [deepLogs, setDeepLogs] = useState<string[]>([]);
+  const [deepScrapeCandidate, setDeepScrapeCandidate] = useState<{ url: string; reason: string } | null>(null);
 
   function updateArtist(index: number, field: keyof Artist, value: string) {
     const updated = [...artists];
@@ -175,6 +176,10 @@ export function NewFestivalForm() {
             // Pre-select algorithm picks
             if (data.algorithmPosterSrc) setSelectedPosterSrcs([data.algorithmPosterSrc]);
             setSelectedLogoSrc(data.logoImageUrl ?? null);
+            if (data.deepScrapeCandidate) {
+              setDeepScrapeCandidate(data.deepScrapeCandidate);
+              setDeepScrapeUrl(data.deepScrapeCandidate.url);
+            }
             setExtracted(true);
             setShowImagePicker(true);
             // DO NOT call setShowForm(true) here — the image picker's Continue button does that
@@ -184,45 +189,53 @@ export function NewFestivalForm() {
           }}
         />
 
-        {/* Deep Scrape */}
-        <div className="border-t pt-4 mt-4 space-y-3">
-          <h3 className="text-sm font-semibold text-gray-700">
-            Deep Scrape (JS-heavy pages)
-          </h3>
-          <p className="text-xs text-gray-500">
-            Use for pages with &quot;Show More&quot; buttons that hide content
-            behind JavaScript. Paste the specific page URL (e.g. the
-            artists/lineup page).
-          </p>
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
-              <input
-                type="url"
-                value={deepScrapeUrl}
-                onChange={(e) => setDeepScrapeUrl(e.target.value)}
-                disabled={deepScraping}
-                placeholder="https://festival.com/artists"
-                className="block w-full rounded border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
-              />
+        {/* Deep Scrape — only shown after initial scrape completes */}
+        {extracted && (
+          <div className="border-t pt-4 mt-4 space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700">
+              Deep Scrape (JS-heavy pages)
+            </h3>
+            {deepScrapeCandidate ? (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                ⚠ {deepScrapeCandidate.reason}
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500">
+                Use for pages with &quot;Show More&quot; buttons that hide content
+                behind JavaScript. Paste the specific page URL (e.g. the
+                artists/lineup page).
+              </p>
+            )}
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <input
+                  type="url"
+                  value={deepScrapeUrl}
+                  onChange={(e) => setDeepScrapeUrl(e.target.value)}
+                  disabled={deepScraping}
+                  placeholder="https://festival.com/artists"
+                  className="block w-full rounded border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleDeepScrape}
+                disabled={deepScraping || !deepScrapeUrl.trim()}
+                className="bg-purple-600 text-white px-4 py-2 rounded text-sm hover:bg-purple-700 disabled:opacity-50 whitespace-nowrap"
+              >
+                {deepScraping ? "Deep Scraping..." : "Deep Scrape"}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={handleDeepScrape}
-              disabled={deepScraping || !deepScrapeUrl.trim()}
-              className="bg-purple-600 text-white px-4 py-2 rounded text-sm hover:bg-purple-700 disabled:opacity-50 whitespace-nowrap"
-            >
-              {deepScraping ? "Deep Scraping..." : "Deep Scrape"}
-            </button>
-          </div>
 
-          {deepLogs.length > 0 && (
-            <div className="bg-gray-900 text-gray-100 rounded-lg p-3 font-mono text-xs max-h-36 overflow-y-auto">
-              {deepLogs.map((line, i) => (
-                <div key={i}>{line}</div>
-              ))}
-            </div>
-          )}
-        </div>
+            {deepLogs.length > 0 && (
+              <div className="bg-gray-900 text-gray-100 rounded-lg p-3 font-mono text-xs max-h-36 overflow-y-auto">
+                {deepLogs.map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {!showForm && (
           <button

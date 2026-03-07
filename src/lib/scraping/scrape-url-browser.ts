@@ -252,7 +252,7 @@ function parseRenderedHtml(html: string, url: string): ScrapeResult {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  return { url, text, jsonLd, links, images, title, faviconUrl };
+  return { url, text, jsonLd, links, images, title, faviconUrl, hasShowMore: false };
 }
 
 // ---------------------------------------------------------------------------

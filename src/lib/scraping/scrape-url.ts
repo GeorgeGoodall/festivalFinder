@@ -56,6 +56,8 @@ export interface ScrapeResult {
   images: ImageCandidate[];
   title: string;
   faviconUrl: string | null;
+  /** True if the page contains "Show More" / "Load More" style buttons */
+  hasShowMore: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -217,8 +219,14 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
   }
 
   $("img").each((_, el) => {
-    const src = $(el).attr("src");
-    if (!src) return;
+    // Support lazy-loaded images (data-src, data-lazy-src, data-lazy, etc.)
+    const src =
+      $(el).attr("data-src") ||
+      $(el).attr("data-lazy-src") ||
+      $(el).attr("data-lazy") ||
+      $(el).attr("data-original") ||
+      $(el).attr("src");
+    if (!src || src.startsWith("data:")) return;
 
     let resolved: string;
     try {
@@ -287,6 +295,20 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
     links.push({ url: norm, text, context });
   });
 
+  // --- Detect "Show More" buttons ---
+  const showMorePattern = /show\s*more|load\s*more|view\s*all|see\s*all|view\s*more/i;
+  let hasShowMore = false;
+  $("button, a").each((_, el) => {
+    if (hasShowMore) return;
+    const btnText = $(el).text().trim();
+    if (showMorePattern.test(btnText)) {
+      hasShowMore = true;
+    }
+  });
+  if (!hasShowMore) {
+    hasShowMore = $('[data-testid*="show-more"], [data-testid*="load-more"]').length > 0;
+  }
+
   // --- Clean text ---
   $(
     "script, style, nav, footer, header, iframe, noscript, svg, form"
@@ -299,5 +321,5 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  return { url, text, jsonLd, links, images, title, faviconUrl };
+  return { url, text, jsonLd, links, images, title, faviconUrl, hasShowMore };
 }

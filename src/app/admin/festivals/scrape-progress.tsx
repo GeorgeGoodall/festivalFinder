@@ -53,6 +53,7 @@ interface CrawlCompleteData {
   };
   pageTree: PageNode;
   pagesScraped: number;
+  deepScrapeCandidate: { url: string; reason: string } | null;
 }
 
 const CATEGORY_STYLES: Record<

@@ -153,6 +153,7 @@ export async function POST(req: NextRequest) {
           usage: result.usage,
           pageTree: result.pageTree,
           pagesScraped: result.pagesScraped,
+          deepScrapeCandidate: result.deepScrapeCandidate,
         });
       } catch (error) {
         const errorMessage =

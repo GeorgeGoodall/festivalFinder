@@ -68,6 +68,11 @@ export interface ImageCandidate {
   height: number | null;
 }
 
+export interface DeepScrapeCandidate {
+  url: string;
+  reason: string;
+}
+
 export interface CrawlResult {
   extraction: ExtractionResult;
   source: "text" | "poster" | "text+poster";
@@ -80,6 +85,7 @@ export interface CrawlResult {
   usage: UsageSummary;
   pageTree: PageNode;
   pagesScraped: number;
+  deepScrapeCandidate: DeepScrapeCandidate | null;
 }
 
 interface CrawlOptions {
@@ -150,6 +156,7 @@ export async function crawlFestival(
   let discoveredPosterPageUrl: string | null = null;
   let lineupPending = false;
   let logoImageUrl: string | null = null;
+  let deepScrapeCandidate: DeepScrapeCandidate | null = null;
 
   const startDomain = new URL(startUrl).hostname;
 
@@ -313,6 +320,17 @@ export async function crawlFestival(
         lineupContent.push({ url: page.url, text: page.text });
         if (!discoveredLineupUrl) {
           discoveredLineupUrl = page.url;
+        }
+        if (page.hasShowMore && !deepScrapeCandidate) {
+          deepScrapeCandidate = {
+            url: page.url,
+            reason: "Artist page has a \"Show More\" button — content may be hidden behind JavaScript.",
+          };
+          emit({
+            stage: "classifying",
+            message: `Detected "Show More" on artist page — deep scrape recommended`,
+            usage: tracker.getSummary(),
+          });
         }
       } else if (effectivePoster) {
         if (!discoveredPosterPageUrl) {
@@ -659,5 +677,6 @@ export async function crawlFestival(
     usage,
     pageTree: rootNode,
     pagesScraped: totalScraped,
+    deepScrapeCandidate,
   };
 }
