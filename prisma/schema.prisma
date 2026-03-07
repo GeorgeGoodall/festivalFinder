@@ -40,35 +40,35 @@ enum SubmissionStatus {
 }
 
 model Festival {
-  id             String         @id @default(cuid())
-  name           String
-  slug           String         @unique
-  description    String?
-  startDate      DateTime       @map("start_date")
-  endDate        DateTime       @map("end_date")
-  location       String
-  region         String
-  latitude       Float?
-  longitude      Float?
-  priceFrom      Int?           @map("price_from")
-  priceTo        Int?           @map("price_to")
-  hasCamping     Boolean        @default(false) @map("has_camping")
-  websiteUrl     String?        @map("website_url")
-  ticketUrl      String?        @map("ticket_url")
-  lineupUrl      String?        @map("lineup_url")
-  lineupHash     String?        @map("lineup_hash")
-  posterPageUrl  String?        @map("poster_page_url")
-  lastScrapedAt  DateTime?      @map("last_scraped_at")
-  lineupPending  Boolean        @default(false) @map("lineup_pending")
-  socialInstagram String? @map("social_instagram")
-  socialFacebook  String? @map("social_facebook")
-  socialX         String? @map("social_x")
-  socialTiktok    String? @map("social_tiktok")
-  campingDetails  String? @map("camping_details")
-  ageRestriction  String? @map("age_restriction")
-  status         FestivalStatus @default(draft)
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
+  id              String         @id @default(cuid())
+  name            String
+  slug            String         @unique
+  description     String?
+  startDate       DateTime       @map("start_date")
+  endDate         DateTime       @map("end_date")
+  location        String
+  region          String
+  latitude        Float?
+  longitude       Float?
+  priceFrom       Int?           @map("price_from")
+  priceTo         Int?           @map("price_to")
+  hasCamping      Boolean        @default(false) @map("has_camping")
+  websiteUrl      String?        @map("website_url")
+  ticketUrl       String?        @map("ticket_url")
+  lineupUrl       String?        @map("lineup_url")
+  lineupHash      String?        @map("lineup_hash")
+  posterPageUrl   String?        @map("poster_page_url")
+  lastScrapedAt   DateTime?      @map("last_scraped_at")
+  lineupPending   Boolean        @default(false) @map("lineup_pending")
+  socialInstagram String?        @map("social_instagram")
+  socialFacebook  String?        @map("social_facebook")
+  socialX         String?        @map("social_x")
+  socialTiktok    String?        @map("social_tiktok")
+  campingDetails  String?        @map("camping_details")
+  ageRestriction  String?        @map("age_restriction")
+  status          FestivalStatus @default(draft)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
 
   artists    FestivalArtist[]
   posters    FestivalPoster[]
@@ -96,8 +96,8 @@ model FestivalArtist {
   festivalId String  @map("festival_id")
   artistId   String  @map("artist_id")
   billing    Billing @default(support)
-  day   Int?
-  stage String?
+  day        Int?    @map("day")
+  stage      String? @map("stage")
 
   festival Festival @relation(fields: [festivalId], references: [id], onDelete: Cascade)
   artist   Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
