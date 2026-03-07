@@ -8,15 +8,14 @@ export interface InferRegionResult {
 }
 
 const MODEL = "gemini-2.5-flash";
-
 const REGIONS_LIST = UK_REGIONS.join(", ");
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const model = genAI.getGenerativeModel({ model: MODEL });
 
 export async function inferRegionFromLocation(
   location: string
 ): Promise<InferRegionResult> {
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: MODEL });
-
   const result = await model.generateContent(
     `Which UK region does this festival location belong to?
 

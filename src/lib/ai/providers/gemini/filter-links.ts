@@ -19,6 +19,39 @@ export interface FilterLinksResult {
 
 const MODEL = "gemini-2.5-flash";
 
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const model = genAI.getGenerativeModel({
+  model: MODEL,
+  tools: [
+    {
+      functionDeclarations: [
+        {
+          name: "select_relevant_links",
+          description:
+            "Select the indices of links that are relevant to discovering festival information.",
+          parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+              relevant_indices: {
+                type: SchemaType.ARRAY,
+                items: { type: SchemaType.NUMBER },
+                description: "Array of indices of relevant links",
+              },
+            },
+            required: ["relevant_indices"],
+          },
+        },
+      ],
+    },
+  ],
+  toolConfig: {
+    functionCallingConfig: {
+      mode: FunctionCallingMode.ANY,
+      allowedFunctionNames: ["select_relevant_links"],
+    },
+  },
+});
+
 export async function filterLinksForFestival(
   links: LinkCandidate[]
 ): Promise<FilterLinksResult> {
@@ -29,39 +62,6 @@ export async function filterLinksForFestival(
       usage: { inputTokens: 0, outputTokens: 0, model: MODEL },
     };
   }
-
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  const model = genAI.getGenerativeModel({
-    model: MODEL,
-    tools: [
-      {
-        functionDeclarations: [
-          {
-            name: "select_relevant_links",
-            description:
-              "Select the indices of links that are relevant to discovering festival information.",
-            parameters: {
-              type: SchemaType.OBJECT,
-              properties: {
-                relevant_indices: {
-                  type: SchemaType.ARRAY,
-                  items: { type: SchemaType.NUMBER },
-                  description: "Array of indices of relevant links",
-                },
-              },
-              required: ["relevant_indices"],
-            },
-          },
-        ],
-      },
-    ],
-    toolConfig: {
-      functionCallingConfig: {
-        mode: FunctionCallingMode.ANY,
-        allowedFunctionNames: ["select_relevant_links"],
-      },
-    },
-  });
 
   const numberedList = links
     .map(
