@@ -117,6 +117,16 @@ export async function POST(req: NextRequest) {
               posterPageUrl: result.posterPageUrl,
               lastScrapedAt: new Date(),
               lineupPending: result.lineupPending,
+              // New fields from extraction
+              description: result.extraction.description || undefined,
+              ticketUrl: result.extraction.ticket_url || undefined,
+              hasCamping: result.extraction.has_camping ?? undefined,
+              campingDetails: result.extraction.camping_details || undefined,
+              ageRestriction: result.extraction.age_restriction || undefined,
+              socialInstagram: result.extraction.social_links?.instagram || undefined,
+              socialFacebook: result.extraction.social_links?.facebook || undefined,
+              socialX: result.extraction.social_links?.x || undefined,
+              socialTiktok: result.extraction.social_links?.tiktok || undefined,
             },
           });
 
