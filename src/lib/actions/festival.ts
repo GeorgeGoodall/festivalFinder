@@ -63,6 +63,12 @@ export async function createFestival(formData: FormData) {
   const posterPageUrl = formData.get("posterPageUrl") as string | null;
   const lineupPendingStr = formData.get("lineupPending") as string | null;
   const lineupPending = lineupPendingStr === "true";
+  const campingDetails = formData.get("campingDetails") as string | null;
+  const ageRestriction = formData.get("ageRestriction") as string | null;
+  const socialInstagram = formData.get("socialInstagram") as string | null;
+  const socialFacebook = formData.get("socialFacebook") as string | null;
+  const socialX = formData.get("socialX") as string | null;
+  const socialTiktok = formData.get("socialTiktok") as string | null;
 
   if (!name || !startDate || !endDate || !location || !region) {
     throw new Error("Missing required fields");
@@ -98,6 +104,12 @@ export async function createFestival(formData: FormData) {
         lineupUrl: lineupUrl || null,
         posterPageUrl: posterPageUrl || null,
         lineupPending,
+        campingDetails: campingDetails || null,
+        ageRestriction: ageRestriction || null,
+        socialInstagram: socialInstagram || null,
+        socialFacebook: socialFacebook || null,
+        socialX: socialX || null,
+        socialTiktok: socialTiktok || null,
         status: formData.get("publish") === "true" ? "published" : "draft",
       },
     });
@@ -111,18 +123,22 @@ export async function createFestival(formData: FormData) {
   // Create artists from extraction if provided
   if (artistsJson) {
     try {
-      const artists = JSON.parse(artistsJson) as Array<{ name: string; billing: string }>;
+      const artists = JSON.parse(artistsJson) as Array<{ name: string; billing: string; genre?: string; day?: number; stage?: string }>;
       for (const a of artists) {
         const artistSlug = slugify(a.name);
         let artist = await prisma.artist.findUnique({ where: { slug: artistSlug } });
         if (!artist) {
-          artist = await prisma.artist.create({ data: { name: a.name, slug: artistSlug } });
+          artist = await prisma.artist.create({ data: { name: a.name, slug: artistSlug, genre: a.genre || undefined } });
+        } else if (!artist.genre && a.genre) {
+          await prisma.artist.update({ where: { id: artist.id }, data: { genre: a.genre } });
         }
         await prisma.festivalArtist.create({
           data: {
             festivalId: festival.id,
             artistId: artist.id,
             billing: (a.billing as "headliner" | "support") || "support",
+            day: a.day ?? undefined,
+            stage: a.stage || undefined,
           },
         });
       }
@@ -193,6 +209,12 @@ export async function updateFestival(id: string, formData: FormData) {
   const ticketUrl = formData.get("ticketUrl") as string;
   const status = formData.get("status") as string;
   const lineupUrl = formData.get("lineupUrl") as string;
+  const campingDetails = formData.get("campingDetails") as string | null;
+  const ageRestriction = formData.get("ageRestriction") as string | null;
+  const socialInstagram = formData.get("socialInstagram") as string | null;
+  const socialFacebook = formData.get("socialFacebook") as string | null;
+  const socialX = formData.get("socialX") as string | null;
+  const socialTiktok = formData.get("socialTiktok") as string | null;
 
   if (!name || !startDate || !endDate || !location || !region) {
     throw new Error("Missing required fields");
@@ -220,6 +242,12 @@ export async function updateFestival(id: string, formData: FormData) {
         websiteUrl: websiteUrl || null,
         ticketUrl: ticketUrl || null,
         lineupUrl: lineupUrl || null,
+        campingDetails: campingDetails || null,
+        ageRestriction: ageRestriction || null,
+        socialInstagram: socialInstagram || null,
+        socialFacebook: socialFacebook || null,
+        socialX: socialX || null,
+        socialTiktok: socialTiktok || null,
         status: status as "draft" | "pending_review" | "published",
       },
     });
