@@ -9,6 +9,9 @@ import { ImagePicker, type ImageCandidate } from "../image-picker";
 interface Artist {
   name: string;
   billing: "headliner" | "support";
+  genre?: string;
+  day?: number;
+  stage?: string;
 }
 
 export function NewFestivalForm() {
@@ -24,6 +27,17 @@ export function NewFestivalForm() {
   const [location, setLocation] = useState("");
   const [region, setRegion] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+
+  // New extraction fields
+  const [description, setDescription] = useState("");
+  const [ticketUrl, setTicketUrl] = useState("");
+  const [hasCamping, setHasCamping] = useState(false);
+  const [campingDetails, setCampingDetails] = useState("");
+  const [ageRestriction, setAgeRestriction] = useState("");
+  const [socialInstagram, setSocialInstagram] = useState("");
+  const [socialFacebook, setSocialFacebook] = useState("");
+  const [socialX, setSocialX] = useState("");
+  const [socialTiktok, setSocialTiktok] = useState("");
 
   // Fields from crawl result
   const [lineupUrl, setLineupUrl] = useState("");
@@ -167,6 +181,15 @@ export function NewFestivalForm() {
             if (ext.region) setRegion(ext.region);
             if (ext.website_url) setWebsiteUrl(ext.website_url);
             if (ext.artists?.length) setArtists(ext.artists);
+            if (ext.description) setDescription(ext.description);
+            if (ext.ticket_url) setTicketUrl(ext.ticket_url);
+            if (ext.has_camping != null) setHasCamping(ext.has_camping);
+            if (ext.camping_details) setCampingDetails(ext.camping_details);
+            if (ext.age_restriction) setAgeRestriction(ext.age_restriction);
+            if (ext.social_links?.instagram) setSocialInstagram(ext.social_links.instagram);
+            if (ext.social_links?.facebook) setSocialFacebook(ext.social_links.facebook);
+            if (ext.social_links?.x) setSocialX(ext.social_links.x);
+            if (ext.social_links?.tiktok) setSocialTiktok(ext.social_links.tiktok);
             setLineupUrl(data.lineupUrl ?? "");
             setPosterPageUrl(data.posterPageUrl);
             setLineupPending(data.lineupPending ?? false);
@@ -299,6 +322,12 @@ export function NewFestivalForm() {
             <input type="hidden" name="lineupUrl" value={lineupUrl} />
           )}
           <input type="hidden" name="lineupPending" value={String(lineupPending)} />
+          {campingDetails && <input type="hidden" name="campingDetails" value={campingDetails} />}
+          {ageRestriction && <input type="hidden" name="ageRestriction" value={ageRestriction} />}
+          {socialInstagram && <input type="hidden" name="socialInstagram" value={socialInstagram} />}
+          {socialFacebook && <input type="hidden" name="socialFacebook" value={socialFacebook} />}
+          {socialX && <input type="hidden" name="socialX" value={socialX} />}
+          {socialTiktok && <input type="hidden" name="socialTiktok" value={socialTiktok} />}
           {selectedPosterSrcs.length > 0 && (
             <input type="hidden" name="selectedPosterSrcs" value={JSON.stringify(selectedPosterSrcs)} />
           )}
@@ -342,6 +371,8 @@ export function NewFestivalForm() {
               id="description"
               name="description"
               rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               className="mt-1 block w-full rounded border border-gray-300 px-3 py-2"
             />
           </div>
@@ -465,6 +496,8 @@ export function NewFestivalForm() {
               id="hasCamping"
               name="hasCamping"
               type="checkbox"
+              checked={hasCamping}
+              onChange={(e) => setHasCamping(e.target.checked)}
               className="rounded border-gray-300"
             />
             <label
@@ -503,6 +536,8 @@ export function NewFestivalForm() {
                 id="ticketUrl"
                 name="ticketUrl"
                 type="url"
+                value={ticketUrl}
+                onChange={(e) => setTicketUrl(e.target.value)}
                 className="mt-1 block w-full rounded border border-gray-300 px-3 py-2"
               />
             </div>
