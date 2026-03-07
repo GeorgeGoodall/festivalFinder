@@ -81,15 +81,30 @@ export async function POST(req: NextRequest) {
         // Log API usage
         await prisma.apiUsageLog.create({
           data: {
-            model:
-              result.source === "poster"
-                ? "claude-sonnet-4-6"
-                : "claude-haiku-4-5-20251001",
+            model: result.source.includes("poster")
+              ? "claude-sonnet-4-6"
+              : "claude-haiku-4-5-20251001",
             inputTokens: result.usage.inputTokens,
             outputTokens: result.usage.outputTokens,
             festivalId: body.festivalId || null,
             festivalName: result.extraction.festival_name || null,
             success: true,
+          },
+        });
+
+        // Create scrape log
+        const scrapeLog = await prisma.scrapeLog.create({
+          data: {
+            festivalId: body.festivalId || null,
+            url: body.url,
+            source: result.source,
+            status: "success",
+            pagesScraped: result.pagesScraped,
+            artistsFound: result.extraction.artists?.length ?? 0,
+            lineupUrl: result.lineupUrl,
+            lineupPending: result.lineupPending,
+            inputTokens: result.usage.inputTokens,
+            outputTokens: result.usage.outputTokens,
           },
         });
 
@@ -126,11 +141,13 @@ export async function POST(req: NextRequest) {
         }
 
         sendEvent("complete", {
+          scrapeLogId: scrapeLog.id,
           extraction: result.extraction,
           source: result.source,
           lineupUrl: result.lineupUrl,
           posterPageUrl: result.posterPageUrl,
-          posterImageUrl: result.posterImageUrl,
+          imageCandidates: result.imageCandidates,
+          algorithmPosterSrc: result.algorithmPosterSrc,
           lineupPending: result.lineupPending,
           logoImageUrl: result.logoImageUrl,
           usage: result.usage,
@@ -138,13 +155,30 @@ export async function POST(req: NextRequest) {
           pagesScraped: result.pagesScraped,
         });
       } catch (error) {
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "An unexpected error occurred while scraping.";
+
         if (!abortController.signal.aborted) {
-          sendEvent("error", {
-            message:
-              error instanceof Error
-                ? error.message
-                : "An unexpected error occurred while scraping.",
-          });
+          await prisma.scrapeLog.create({
+            data: {
+              festivalId: body.festivalId || null,
+              url: body.url,
+              status: "error",
+              errorMessage,
+            },
+          }).catch((err) => console.error("[scrape-festival] Failed to create error scrape log:", err));
+
+          sendEvent("error", { message: errorMessage });
+        } else {
+          await prisma.scrapeLog.create({
+            data: {
+              festivalId: body.festivalId || null,
+              url: body.url,
+              status: "aborted",
+            },
+          }).catch((err) => console.error("[scrape-festival] Failed to create aborted scrape log:", err));
         }
       } finally {
         activeScrape = false;
