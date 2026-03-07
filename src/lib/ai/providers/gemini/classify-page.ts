@@ -35,7 +35,7 @@ const model = genAI.getGenerativeModel({
                 enum: ["lineup", "info", "about", "poster_only", "irrelevant"],
                 description:
                   "lineup = page lists artist/band names as primary content. " +
-                  "info = page contains festival dates, location, venue, description but not a lineup. " +
+                  "info = page contains festival dates, location, or venue details as primary content but not a lineup. " +
                   "about = page contains festival description, social media links, camping info, accessibility, age restrictions, FAQs, or ticket purchase links but not a lineup. " +
                   "poster_only = page has no structured lineup or info text but likely contains poster images. " +
                   "irrelevant = none of the above.",
