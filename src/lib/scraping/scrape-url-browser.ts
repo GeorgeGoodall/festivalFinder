@@ -279,11 +279,16 @@ export async function scrapeUrlWithBrowser(
     const page = await context.newPage();
     page.setDefaultTimeout(BROWSER_TIMEOUT_MS);
 
-    log("Navigating to page (waiting for network idle)...");
+    log("Navigating to page (waiting for load event)...");
     await page.goto(url, {
-      waitUntil: "networkidle",
+      waitUntil: "load",
       timeout: BROWSER_TIMEOUT_MS,
     });
+    // Brief pause for JS frameworks to render after load event
+    await page.waitForTimeout(2_000);
+
+    const pageTitle = await page.title();
+    log(`Page loaded${pageTitle ? `: "${pageTitle}"` : ""}`);
 
     // --- Click "Show More" buttons ---
     let totalClicks = 0;
@@ -295,13 +300,11 @@ export async function scrapeUrlWithBrowser(
         try {
           const button = page.locator(selector).first();
           if (await button.isVisible({ timeout: 500 })) {
-            log(
-              `Clicking "${selector}" (click ${totalClicks + 1}/${MAX_CLICKS})`
-            );
+            log(`Clicking "Show More" button (${totalClicks + 1}/${MAX_CLICKS})...`);
             await button.click();
             totalClicks++;
             clicked = true;
-            // Wait for content to settle after click
+            log("Waiting for content to settle...");
             await page.waitForTimeout(CLICK_SETTLE_MS);
             break; // restart the selector loop after each click
           }
@@ -311,30 +314,28 @@ export async function scrapeUrlWithBrowser(
       }
 
       if (!clicked) {
-        log(
-          totalClicks > 0
-            ? `No more "show more" buttons found after ${totalClicks} click(s).`
-            : "No 'show more' buttons found on page."
-        );
+        if (totalClicks > 0) {
+          log(`No more "Show More" buttons found (clicked ${totalClicks} total).`);
+        } else {
+          log("No 'Show More' buttons found — page content is fully visible.");
+        }
         break;
       }
     }
 
     if (totalClicks >= MAX_CLICKS) {
-      log(`Reached maximum click limit (${MAX_CLICKS}).`);
+      log(`Reached click limit (${MAX_CLICKS}).`);
     }
 
     // --- Extract fully-rendered HTML ---
-    log("Extracting fully-rendered page content...");
+    log("Extracting rendered HTML...");
     const html = await page.content();
 
     // --- Parse with cheerio ---
-    log("Parsing rendered HTML...");
+    log("Parsing content...");
     const result = parseRenderedHtml(html, url);
 
-    log(
-      `Done. Found ${result.images.length} images, ${result.links.length} links.`
-    );
+    log(`Extraction complete — ${result.text.length.toLocaleString()} chars, ${result.images.length} images, ${result.links.length} links.`);
     return result;
   } finally {
     await browser.close();
