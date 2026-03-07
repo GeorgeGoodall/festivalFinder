@@ -1,6 +1,5 @@
-import { imageSize } from "image-size";
 import { scrapeUrl, normalizeUrl } from "./scrape-url";
-import type { LinkWithContext, ImageCandidate } from "./scrape-url";
+import type { LinkWithContext, ImageCandidate as ScrapeImageCandidate } from "./scrape-url";
 import { filterLinksForFestival } from "@/lib/ai/filter-links";
 import { classifyPage, type PageCategory } from "@/lib/ai/classify-page";
 import { extractFestivalFromText } from "@/lib/ai/extract-festival";
@@ -15,7 +14,7 @@ import { UK_REGIONS } from "@/lib/constants";
 // ---------------------------------------------------------------------------
 
 interface PosterCandidate {
-  img: ImageCandidate;
+  img: ScrapeImageCandidate;
   sourcePage: string;
   sourceClassification: string;
 }
@@ -60,12 +59,22 @@ export interface PageNode {
   children: PageNode[];
 }
 
+export interface ImageCandidate {
+  src: string;
+  alt: string;
+  sourcePage: string;
+  sourceClassification: "poster_only" | "lineup" | "fallback" | "og" | "favicon";
+  width: number | null;
+  height: number | null;
+}
+
 export interface CrawlResult {
   extraction: ExtractionResult;
-  source: "text" | "poster";
+  source: "text" | "poster" | "text+poster";
   lineupUrl: string | null;
   posterPageUrl: string | null;
-  posterImageUrl: string | null;
+  imageCandidates: ImageCandidate[];
+  algorithmPosterSrc: string | null;
   lineupPending: boolean;
   logoImageUrl: string | null;
   usage: UsageSummary;
@@ -240,6 +249,8 @@ export async function crawlFestival(
     tracker.addFilterLinks(filterResult.usage);
     totalAiCalls++;
 
+    console.log(`[crawl] Filter selected ${filterResult.selected.length}/${sameDomainLinks.length} links: ${filterResult.selected.map(l => urlPathname(l.url)).join(", ")}`);
+
     if (signal?.aborted) break;
 
     // Process each selected link
@@ -265,8 +276,8 @@ export async function crawlFestival(
       let page;
       try {
         page = await scrapeUrl(link.url);
-      } catch {
-        // Continue on fetch failure
+      } catch (err) {
+        console.warn(`[crawl] Failed to fetch "${link.url}":`, err);
         continue;
       }
 
@@ -300,26 +311,29 @@ export async function crawlFestival(
         usage: tracker.getSummary(),
       });
 
-      // Handle based on category
-      switch (classification.category) {
-        case "lineup":
-          lineupContent.push({ url: page.url, text: page.text });
-          if (!discoveredLineupUrl) {
-            discoveredLineupUrl = page.url;
-          }
-          break;
-        case "info":
-          infoContent.push({ url: page.url, text: page.text });
-          break;
-        case "poster_only":
-          if (!discoveredPosterPageUrl) {
-            discoveredPosterPageUrl = page.url;
-          }
-          break;
+      // URL-based heuristics — override or supplement AI classification
+      const pagePath = urlPathname(page.url);
+      const isPosterUrl = /poster|artwork|flyer|download|press|media/i.test(pagePath);
+      const isLineupUrl = /lineup|artists?|performers?|acts|headliners?|bill|programme|program|schedule|stages?/i.test(pagePath);
+
+      // Handle based on category (URL heuristics take priority for lineup/poster)
+      const effectiveLineup = classification.category === "lineup" || isLineupUrl;
+      const effectivePoster = classification.category === "poster_only" || isPosterUrl;
+
+      if (effectiveLineup) {
+        lineupContent.push({ url: page.url, text: page.text });
+        if (!discoveredLineupUrl) {
+          discoveredLineupUrl = page.url;
+        }
+      } else if (effectivePoster) {
+        if (!discoveredPosterPageUrl) {
+          discoveredPosterPageUrl = page.url;
+        }
+      } else if (classification.category === "info") {
+        infoContent.push({ url: page.url, text: page.text });
       }
 
-      // Route images to priority buckets based on page classification
-      const pagePath = urlPathname(page.url);
+      // Route images to priority buckets
       const nonOgImages = page.images.filter(i => i.alt !== "og:image");
       const ogImgs = page.images.filter(i => i.alt === "og:image");
 
@@ -328,9 +342,9 @@ export async function crawlFestival(
       }
 
       for (const img of nonOgImages) {
-        if (classification.category === "poster_only") {
+        if (effectivePoster) {
           posterPageImages.push({ img, sourcePage: page.url, sourceClassification: "poster_only" });
-        } else if (classification.category === "lineup") {
+        } else if (effectiveLineup) {
           lineupImages.push({ img, sourcePage: page.url, sourceClassification: "lineup" });
         } else {
           fallbackImages.push({ img, sourcePage: page.url, sourceClassification: "fallback" });
@@ -357,7 +371,7 @@ export async function crawlFestival(
   // -----------------------------------------------------------------------
 
   let extraction: ExtractionResult;
-  let source: "text" | "poster";
+  let source: "text" | "poster" | "text+poster";
 
   const bestCandidateForExtraction =
     posterPageImages[0] ?? lineupImages[0] ?? fallbackImages[0] ?? ogImage;
@@ -377,10 +391,68 @@ export async function crawlFestival(
     tracker.addExtraction(textResult.usage);
     extraction = textResult.extraction;
     source = "text";
+
+    // Check if any single lineup page is a rich lineup page (20+ artists).
+    // We do this by counting how many of the extracted artist names appear in
+    // each page's raw text — free, no extra AI calls needed.
+    const artistNames = extraction.artists.map((a) => a.name.toLowerCase());
+    let maxArtistsOnSinglePage = 0;
+    for (const page of lineupContent) {
+      const pageText = page.text.toLowerCase();
+      const count = artistNames.filter((name) => pageText.includes(name)).length;
+      if (count > maxArtistsOnSinglePage) maxArtistsOnSinglePage = count;
+    }
+
+    const hasRichLineupPage = maxArtistsOnSinglePage >= 20;
+
+    if (hasRichLineupPage) {
+      emit({
+        stage: "extracting",
+        message: `Artist page found (${maxArtistsOnSinglePage} artists on one page) — not scanning poster`,
+        usage: tracker.getSummary(),
+      });
+    } else if (!extraction.lineup_pending && bestCandidateForExtraction) {
+      emit({
+        stage: "extracting",
+        message: `No artist page found (max ${maxArtistsOnSinglePage} artists on any one page) — scanning poster`,
+        usage: tracker.getSummary(),
+      });
+
+      const posterResult = await extractFromPoster(bestCandidateForExtraction.img.src);
+      tracker.addExtraction(posterResult.usage);
+
+      // Merge poster artists into text extraction, deduplicating by name
+      const existingNames = new Set(extraction.artists.map((a) => a.name.toLowerCase()));
+      const newArtists = posterResult.extraction.artists.filter(
+        (a) => !existingNames.has(a.name.toLowerCase())
+      );
+
+      if (newArtists.length > 0) {
+        extraction = { ...extraction, artists: [...extraction.artists, ...newArtists] };
+        source = "text+poster";
+        emit({
+          stage: "extracting",
+          message: `Poster added ${newArtists.length} additional artist(s) — total: ${extraction.artists.length}`,
+          usage: tracker.getSummary(),
+        });
+      } else {
+        emit({
+          stage: "extracting",
+          message: "Poster scan complete — no additional artists found",
+          usage: tracker.getSummary(),
+        });
+      }
+    } else if (!extraction.lineup_pending) {
+      emit({
+        stage: "extracting",
+        message: `No artist page found (max ${maxArtistsOnSinglePage} artists on any one page) — no poster available to scan`,
+        usage: tracker.getSummary(),
+      });
+    }
   } else if (bestCandidateForExtraction) {
     emit({
       stage: "poster_fallback",
-      message: "No HTML lineup found. Extracting from poster image...",
+      message: "No HTML content found. Extracting from poster image...",
       usage: tracker.getSummary(),
     });
 
@@ -431,120 +503,79 @@ export async function crawlFestival(
   }
 
   // -----------------------------------------------------------------------
-  // 5. Poster storage — iterate candidates in priority order, pick first
-  //    that passes size (≥50KB) and dimension (≥400×400px) checks.
-  //    Fetches are serial to minimise bandwidth — stops at the first image
-  //    that passes quality checks.
+  // 5. Build flat imageCandidates list from all buckets
   // -----------------------------------------------------------------------
 
-  let posterImageUrl: string | null = null;
+  const imageCandidates: ImageCandidate[] = [
+    ...posterPageImages.map((c) => ({
+      src: c.img.src,
+      alt: c.img.alt,
+      sourcePage: c.sourcePage,
+      sourceClassification: "poster_only" as const,
+      width: c.img.width,
+      height: c.img.height,
+    })),
+    ...lineupImages.map((c) => ({
+      src: c.img.src,
+      alt: c.img.alt,
+      sourcePage: c.sourcePage,
+      sourceClassification: "lineup" as const,
+      width: c.img.width,
+      height: c.img.height,
+    })),
+    ...fallbackImages.map((c) => ({
+      src: c.img.src,
+      alt: c.img.alt,
+      sourcePage: c.sourcePage,
+      sourceClassification: "fallback" as const,
+      width: c.img.width,
+      height: c.img.height,
+    })),
+    ...(ogImage
+      ? [{
+          src: ogImage.img.src,
+          alt: ogImage.img.alt,
+          sourcePage: ogImage.sourcePage,
+          sourceClassification: "og" as const,
+          width: ogImage.img.width,
+          height: ogImage.img.height,
+        }]
+      : []),
+  ];
 
-  if (!lineupPending) {
-    const MIN_BYTES = 50 * 1024;
-    const MIN_DIM = 400;
-
-    const allCandidates: PosterCandidate[] = [
-      ...posterPageImages,
-      ...lineupImages,
-      ...fallbackImages,
-      ...(ogImage ? [ogImage] : []),
-    ];
-
-    console.log(`[poster] ${allCandidates.length} total candidate(s) across all buckets`);
-    emit({
-      stage: "poster_search",
-      message: `Searching for poster — ${allCandidates.length} candidate image(s) found`,
-      usage: tracker.getSummary(),
+  // Add favicon as a candidate if present
+  if (homepage.faviconUrl) {
+    imageCandidates.push({
+      src: homepage.faviconUrl,
+      alt: "favicon",
+      sourcePage: homepage.url,
+      sourceClassification: "favicon",
+      width: null,
+      height: null,
     });
+  }
 
-    for (const candidate of allCandidates) {
-      const src = candidate.img.src;
-      const srcPath = urlPathname(src);
-      const pagePathLabel = urlPathname(candidate.sourcePage);
+  // -----------------------------------------------------------------------
+  // 5b. Algorithm poster pick — choose best candidate without fetching.
+  //     Prefer images with known large dimensions or no dimension info.
+  //     Priority order is already encoded in imageCandidates order.
+  // -----------------------------------------------------------------------
 
-      console.log(`[poster] Checking "${srcPath}" from ${pagePathLabel} (${candidate.sourceClassification})`);
+  const MIN_DIM = 800;
+  let algorithmPosterSrc: string | null = null;
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15_000);
-      let imgResponse: Response;
-      try {
-        imgResponse = await fetch(src, { signal: controller.signal });
-      } catch (err) {
-        console.warn(`[poster] Skipping "${srcPath}": fetch failed —`, err);
-        continue;
-      } finally {
-        clearTimeout(timeoutId);
-      }
+  for (const candidate of imageCandidates) {
+    if (candidate.sourceClassification === "favicon") continue;
 
-      const contentType = imgResponse.headers.get("content-type") || "";
-      if (!contentType.startsWith("image/")) {
-        console.warn(`[poster] Skipping "${srcPath}": non-image content-type "${contentType}"`);
-        continue;
-      }
+    const w = candidate.width ?? 0;
+    const h = candidate.height ?? 0;
+    const hasDimensions = candidate.width !== null || candidate.height !== null;
 
-      const contentLength = Number(imgResponse.headers.get("content-length") ?? 0);
-      if (contentLength > 0 && contentLength < MIN_BYTES) {
-        console.log(`[poster] Skipping "${srcPath}": content-length too small (${Math.round(contentLength / 1024)}KB < 50KB)`);
-        continue;
-      }
+    // Skip if dimensions are known and too small
+    if (hasDimensions && (w < MIN_DIM || h < MIN_DIM)) continue;
 
-      const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
-
-      if (imgBuffer.length < MIN_BYTES) {
-        console.log(`[poster] Skipping "${srcPath}": too small (${Math.round(imgBuffer.length / 1024)}KB < 50KB)`);
-        continue;
-      }
-
-      let dims: { width?: number; height?: number } = {};
-      try {
-        dims = imageSize(imgBuffer);
-      } catch {
-        console.warn(`[poster] Could not read dimensions for "${srcPath}", skipping`);
-        continue;
-      }
-
-      const w = dims.width ?? 0;
-      const h = dims.height ?? 0;
-      if (w < MIN_DIM || h < MIN_DIM) {
-        console.log(`[poster] Skipping "${srcPath}": dimensions too small (${w}×${h} < ${MIN_DIM}×${MIN_DIM})`);
-        continue;
-      }
-
-      console.log(`[poster] Selected "${srcPath}" (${Math.round(imgBuffer.length / 1024)}KB, ${w}×${h}) from ${pagePathLabel}`);
-      emit({
-        stage: "poster_search",
-        message: `Selected poster from ${pagePathLabel} (${Math.round(imgBuffer.length / 1024)}KB, ${w}×${h}px)`,
-        usage: tracker.getSummary(),
-      });
-
-      const ext = getExtensionFromUrl(src);
-      const filename = `crawled-${Date.now()}${ext}`;
-
-      const { error } = await supabaseAdmin.storage
-        .from("posters")
-        .upload(filename, imgBuffer, { contentType, upsert: false });
-
-      if (!error) {
-        const { data: { publicUrl } } = supabaseAdmin.storage
-          .from("posters")
-          .getPublicUrl(filename);
-        posterImageUrl = publicUrl;
-      } else {
-        console.error("[poster] Supabase upload failed:", error);
-      }
-
-      break;
-    }
-
-    if (!posterImageUrl && allCandidates.length > 0) {
-      posterImageUrl = allCandidates[0].img.src;
-      console.warn("[poster] No candidate passed quality checks — using external URL as fallback:", posterImageUrl);
-      emit({
-        stage: "poster_search",
-        message: "No suitable poster image found — using external URL as fallback",
-        usage: tracker.getSummary(),
-      });
-    }
+    algorithmPosterSrc = candidate.src;
+    break;
   }
 
   // -----------------------------------------------------------------------
@@ -632,7 +663,8 @@ export async function crawlFestival(
     source,
     lineupUrl: discoveredLineupUrl,
     posterPageUrl: discoveredPosterPageUrl,
-    posterImageUrl,
+    imageCandidates,
+    algorithmPosterSrc,
     lineupPending,
     logoImageUrl,
     usage,
