@@ -107,6 +107,10 @@ export async function POST(req: NextRequest) {
 
           if (result.logoImageUrl) {
             try {
+              // Remove any existing logo poster before inserting the new one
+              await prisma.festivalPoster.deleteMany({
+                where: { festivalId: body.festivalId, category: "logo" },
+              });
               await prisma.festivalPoster.create({
                 data: {
                   festivalId: body.festivalId,

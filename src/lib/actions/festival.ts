@@ -136,6 +136,7 @@ export async function updateFestival(id: string, formData: FormData) {
   const priceFrom = formData.get("priceFrom") as string;
   const priceTo = formData.get("priceTo") as string;
   const hasCamping = formData.get("hasCamping") === "on";
+  const lineupPending = formData.get("lineupPending") === "on";
   const websiteUrl = formData.get("websiteUrl") as string;
   const ticketUrl = formData.get("ticketUrl") as string;
   const status = formData.get("status") as string;
@@ -163,6 +164,7 @@ export async function updateFestival(id: string, formData: FormData) {
         priceFrom: priceFrom ? parseInt(priceFrom) : null,
         priceTo: priceTo ? parseInt(priceTo) : null,
         hasCamping,
+        lineupPending,
         websiteUrl: websiteUrl || null,
         ticketUrl: ticketUrl || null,
         lineupUrl: lineupUrl || null,

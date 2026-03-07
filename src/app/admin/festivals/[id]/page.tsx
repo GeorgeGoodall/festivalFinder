@@ -204,6 +204,22 @@ export default async function EditFestivalPage({
           </label>
         </div>
 
+        <div className="flex items-center gap-2">
+          <input
+            id="lineupPending"
+            name="lineupPending"
+            type="checkbox"
+            defaultChecked={festival.lineupPending}
+            className="rounded border-gray-300"
+          />
+          <label
+            htmlFor="lineupPending"
+            className="text-sm font-medium text-gray-700"
+          >
+            Lineup Pending (lineup not yet announced)
+          </label>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label htmlFor="websiteUrl" className="block text-sm font-medium text-gray-700">
