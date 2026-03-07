@@ -101,8 +101,20 @@ export async function POST(req: NextRequest) {
               lineupUrl: result.lineupUrl,
               posterPageUrl: result.posterPageUrl,
               lastScrapedAt: new Date(),
+              lineupPending: result.lineupPending,
             },
           });
+
+          if (result.logoImageUrl) {
+            await prisma.festivalPoster.create({
+              data: {
+                festivalId: body.festivalId,
+                category: "logo",
+                imageUrl: result.logoImageUrl,
+                version: 1,
+              },
+            });
+          }
         }
 
         sendEvent("complete", {
@@ -111,6 +123,8 @@ export async function POST(req: NextRequest) {
           lineupUrl: result.lineupUrl,
           posterPageUrl: result.posterPageUrl,
           posterImageUrl: result.posterImageUrl,
+          lineupPending: result.lineupPending,
+          logoImageUrl: result.logoImageUrl,
           usage: result.usage,
           pageTree: result.pageTree,
           pagesScraped: result.pagesScraped,
