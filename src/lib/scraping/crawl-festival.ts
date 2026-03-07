@@ -116,7 +116,10 @@ export async function crawlFestival(
   // Content collectors
   const lineupContent: { url: string; text: string }[] = [];
   const infoContent: { url: string; text: string }[] = [];
-  const posterImages: ImageCandidate[] = [];
+  const posterPageImages: ImageCandidate[] = [];   // from poster_only pages (best)
+  const lineupImages: ImageCandidate[] = [];        // from lineup pages
+  const homepageImages: ImageCandidate[] = [];      // <img> elements from homepage
+  let ogImage: ImageCandidate | null = null;        // og:image fallback (worst)
   let discoveredLineupUrl: string | null = null;
   let discoveredPosterPageUrl: string | null = null;
 
@@ -152,8 +155,14 @@ export async function crawlFestival(
   // Homepage usually has festival details
   infoContent.push({ url: homepage.url, text: homepage.text });
 
-  // Collect images from homepage
-  posterImages.push(...homepage.images);
+  // Collect images from homepage — split og:image from real <img> elements
+  for (const img of homepage.images) {
+    if (img.alt === "og:image") {
+      ogImage = img;
+    } else {
+      homepageImages.push(img);
+    }
+  }
 
   // -----------------------------------------------------------------------
   // 2. Seed BFS queue
@@ -277,8 +286,20 @@ export async function crawlFestival(
           break;
       }
 
-      // Always collect images from any page
-      posterImages.push(...page.images);
+      // Route images to priority buckets based on page classification
+      for (const img of page.images) {
+        if (img.alt === "og:image") {
+          ogImage = img;
+          continue;
+        }
+        if (classification.category === "poster_only") {
+          posterPageImages.push(img);
+        } else if (classification.category === "lineup") {
+          lineupImages.push(img);
+        } else {
+          homepageImages.push(img);
+        }
+      }
 
       // Enqueue child links if within depth limit
       if (depth + 1 < MAX_DEPTH && page.links.length > 0) {
@@ -298,6 +319,9 @@ export async function crawlFestival(
   let extraction: ExtractionResult;
   let source: "text" | "poster";
 
+  const bestImageForExtraction =
+    posterPageImages[0] ?? lineupImages[0] ?? homepageImages[0] ?? ogImage ?? null;
+
   if (lineupContent.length > 0 || infoContent.length > 0) {
     emit({
       stage: "extracting",
@@ -313,14 +337,14 @@ export async function crawlFestival(
     tracker.addExtraction(textResult.usage);
     extraction = textResult.extraction;
     source = "text";
-  } else if (posterImages.length > 0) {
+  } else if (bestImageForExtraction) {
     emit({
       stage: "poster_fallback",
       message: "No HTML lineup found. Extracting from poster image...",
       usage: tracker.getSummary(),
     });
 
-    const posterResult = await extractFromPoster(posterImages[0].src);
+    const posterResult = await extractFromPoster(bestImageForExtraction.src);
     tracker.addExtraction(posterResult.usage);
     extraction = posterResult.extraction;
     source = "poster";
@@ -351,8 +375,8 @@ export async function crawlFestival(
       if (regionResult.region) {
         extraction.region = regionResult.region;
       }
-    } catch {
-      // Non-fatal: leave region as-is
+    } catch (err) {
+      console.error("[crawlFestival] inferRegion failed:", err);
     }
   }
 
@@ -360,37 +384,46 @@ export async function crawlFestival(
   // 5. Poster storage
   // -----------------------------------------------------------------------
 
-  let posterImageUrl: string | null =
-    posterImages.length > 0 ? posterImages[0].src : null;
+  const bestImage =
+    posterPageImages[0] ?? lineupImages[0] ?? homepageImages[0] ?? ogImage ?? null;
 
-  if (posterImages.length > 0) {
+  let posterImageUrl: string | null = bestImage?.src ?? null;
+
+  if (bestImage) {
     try {
-      const bestImage = posterImages[0];
       const imgResponse = await fetch(bestImage.src);
-      const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
-      const ext = getExtensionFromUrl(bestImage.src);
-      const filename = `posters/${Date.now()}-crawled${ext}`;
-
       const contentType =
-        imgResponse.headers.get("content-type") || "image/jpeg";
+        imgResponse.headers.get("content-type") || "";
 
-      const { error } = await supabaseAdmin.storage
-        .from("festival-posters")
-        .upload(filename, imgBuffer, {
-          contentType,
-          upsert: false,
-        });
+      if (!contentType.startsWith("image/")) {
+        console.warn(
+          `[crawlFestival] Skipping poster upload — non-image content-type: ${contentType}`
+        );
+        // Leave posterImageUrl as the external src fallback
+      } else {
+        const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
+        const ext = getExtensionFromUrl(bestImage.src);
+        const filename = `crawled-${Date.now()}${ext}`;
 
-      if (!error) {
-        const {
-          data: { publicUrl },
-        } = supabaseAdmin.storage
-          .from("festival-posters")
-          .getPublicUrl(filename);
-        posterImageUrl = publicUrl;
+        const { error } = await supabaseAdmin.storage
+          .from("posters")
+          .upload(filename, imgBuffer, {
+            contentType,
+            upsert: false,
+          });
+
+        if (!error) {
+          const {
+            data: { publicUrl },
+          } = supabaseAdmin.storage
+            .from("posters")
+            .getPublicUrl(filename);
+          posterImageUrl = publicUrl;
+        }
       }
-    } catch {
-      // Non-fatal: keep external URL
+    } catch (err) {
+      console.error("[crawlFestival] Poster upload to Supabase failed:", err);
+      // Non-fatal: keep external URL as fallback
     }
   }
 
