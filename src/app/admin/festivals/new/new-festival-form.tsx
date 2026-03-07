@@ -4,19 +4,11 @@ import { useState } from "react";
 import { createFestival } from "@/lib/actions/festival";
 import { UK_REGIONS } from "@/lib/constants";
 import { ScrapeProgress } from "../scrape-progress";
+import { ImagePicker, type ImageCandidate } from "../image-picker";
 
 interface Artist {
   name: string;
   billing: "headliner" | "support";
-}
-
-interface ImageCandidate {
-  src: string;
-  alt: string;
-  sourcePage: string;
-  sourceClassification: "poster_only" | "lineup" | "fallback" | "og" | "favicon";
-  width: number | null;
-  height: number | null;
 }
 
 export function NewFestivalForm() {
@@ -117,6 +109,35 @@ export function NewFestivalForm() {
         )}
       </div>
 
+      {/* Step 1.5: Image picker — shown after scrape, before form */}
+      {showImagePicker && !showForm && (
+        <div className="max-w-4xl bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-lg font-bold mb-4">Step 1.5: Select Images</h2>
+          <ImagePicker
+            candidates={imageCandidates}
+            algorithmPosterSrc={algorithmPosterSrc}
+            algorithmLogoSrc={logoImageUrl}
+            selectedPosterSrcs={selectedPosterSrcs}
+            selectedLogoSrc={selectedLogoSrc}
+            onPosterChange={setSelectedPosterSrcs}
+            onLogoChange={setSelectedLogoSrc}
+            onArtistsMerge={(newArtists) => {
+              setArtists((prev) => {
+                const existingNames = new Set(prev.map((a) => a.name.toLowerCase()));
+                const toAdd = newArtists.filter(
+                  (a) => !existingNames.has(a.name.toLowerCase())
+                );
+                return [...prev, ...toAdd];
+              });
+            }}
+            onContinue={() => {
+              setShowForm(true);
+              setShowImagePicker(false);
+            }}
+          />
+        </div>
+      )}
+
       {/* Step 2: Form (pre-filled from extraction) */}
       {showForm && (
         <form
@@ -139,8 +160,11 @@ export function NewFestivalForm() {
             <input type="hidden" name="lineupUrl" value={lineupUrl} />
           )}
           <input type="hidden" name="lineupPending" value={String(lineupPending)} />
-          {logoImageUrl && (
-            <input type="hidden" name="logoImageUrl" value={logoImageUrl} />
+          {selectedPosterSrcs.length > 0 && (
+            <input type="hidden" name="selectedPosterSrcs" value={JSON.stringify(selectedPosterSrcs)} />
+          )}
+          {selectedLogoSrc && (
+            <input type="hidden" name="selectedLogoSrc" value={selectedLogoSrc} />
           )}
           {artists.length > 0 && (
             <input
