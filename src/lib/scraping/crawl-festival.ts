@@ -89,6 +89,10 @@ interface QueueEntry {
 // Helpers
 // ---------------------------------------------------------------------------
 
+function urlPathname(url: string): string {
+  try { return new URL(url).pathname; } catch { return url; }
+}
+
 function isAllowedUrl(url: string, startDomain: string): boolean {
   try {
     return new URL(url).hostname === startDomain;
@@ -168,7 +172,7 @@ export async function crawlFestival(
   infoContent.push({ url: homepage.url, text: homepage.text });
 
   // Collect images from homepage — split og:image from real <img> elements
-  const homepagePath = (() => { try { return new URL(homepage.url).pathname; } catch { return homepage.url; } })();
+  const homepagePath = urlPathname(homepage.url);
   for (const img of homepage.images) {
     if (img.alt === "og:image") {
       if (!ogImage) ogImage = { img, sourcePage: homepage.url, sourceClassification: "og" };
@@ -301,7 +305,7 @@ export async function crawlFestival(
       }
 
       // Route images to priority buckets based on page classification
-      const pagePath = (() => { try { return new URL(page.url).pathname; } catch { return page.url; } })();
+      const pagePath = urlPathname(page.url);
       const nonOgImages = page.images.filter(i => i.alt !== "og:image");
       const ogImgs = page.images.filter(i => i.alt === "og:image");
 
@@ -320,7 +324,7 @@ export async function crawlFestival(
       }
 
       if (nonOgImages.length > 0) {
-        console.log(`[poster] Page "${pagePath}" (${classification.category}): ${nonOgImages.length} image(s)`, nonOgImages.map(i => i.src));
+        console.log(`[poster] Page "${pagePath}" (${classification.category}): ${nonOgImages.length} image(s) — ${nonOgImages.map(i => i.src).join(", ")}`);
       }
 
       // Enqueue child links if within depth limit
@@ -404,7 +408,9 @@ export async function crawlFestival(
 
   // -----------------------------------------------------------------------
   // 5. Poster storage — iterate candidates in priority order, pick first
-  //    that passes size (≥50KB) and dimension (≥400×400px) checks
+  //    that passes size (≥50KB) and dimension (≥400×400px) checks.
+  //    Fetches are serial to minimise bandwidth — stops at the first image
+  //    that passes quality checks.
   // -----------------------------------------------------------------------
 
   const MIN_BYTES = 50 * 1024;
@@ -428,22 +434,32 @@ export async function crawlFestival(
 
   for (const candidate of allCandidates) {
     const src = candidate.img.src;
-    const srcPath = (() => { try { return new URL(src).pathname; } catch { return src; } })();
-    const pagePathLabel = (() => { try { return new URL(candidate.sourcePage).pathname; } catch { return candidate.sourcePage; } })();
+    const srcPath = urlPathname(src);
+    const pagePathLabel = urlPathname(candidate.sourcePage);
 
     console.log(`[poster] Checking "${srcPath}" from ${pagePathLabel} (${candidate.sourceClassification})`);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15_000);
     let imgResponse: Response;
     try {
-      imgResponse = await fetch(src);
+      imgResponse = await fetch(src, { signal: controller.signal });
     } catch (err) {
       console.warn(`[poster] Skipping "${srcPath}": fetch failed —`, err);
       continue;
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     const contentType = imgResponse.headers.get("content-type") || "";
     if (!contentType.startsWith("image/")) {
       console.warn(`[poster] Skipping "${srcPath}": non-image content-type "${contentType}"`);
+      continue;
+    }
+
+    const contentLength = Number(imgResponse.headers.get("content-length") ?? 0);
+    if (contentLength > 0 && contentLength < MIN_BYTES) {
+      console.log(`[poster] Skipping "${srcPath}": content-length too small (${Math.round(contentLength / 1024)}KB < 50KB)`);
       continue;
     }
 
