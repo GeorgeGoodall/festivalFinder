@@ -113,17 +113,6 @@ function isAllowedUrl(url: string, startDomain: string): boolean {
   }
 }
 
-function getExtensionFromUrl(url: string): string {
-  try {
-    const pathname = new URL(url).pathname;
-    const lastSegment = pathname.split("/").pop() ?? "";
-    const dotIdx = lastSegment.lastIndexOf(".");
-    if (dotIdx !== -1) return lastSegment.slice(dotIdx);
-  } catch {
-    // ignore
-  }
-  return ".jpg";
-}
 
 function contentTypeToExt(contentType: string): string {
   if (contentType.includes("png")) return ".png";
