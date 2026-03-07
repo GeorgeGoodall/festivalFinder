@@ -10,6 +10,15 @@ interface Artist {
   billing: "headliner" | "support";
 }
 
+interface ImageCandidate {
+  src: string;
+  alt: string;
+  sourcePage: string;
+  sourceClassification: "poster_only" | "lineup" | "fallback" | "og" | "favicon";
+  width: number | null;
+  height: number | null;
+}
+
 export function NewFestivalForm() {
   const [extracted, setExtracted] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -25,11 +34,15 @@ export function NewFestivalForm() {
   const [websiteUrl, setWebsiteUrl] = useState("");
 
   // Fields from crawl result
-  const [posterImageUrl, setPosterImageUrl] = useState<string | null>(null);
   const [lineupUrl, setLineupUrl] = useState("");
   const [posterPageUrl, setPosterPageUrl] = useState<string | null>(null);
   const [lineupPending, setLineupPending] = useState(false);
   const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
+  const [imageCandidates, setImageCandidates] = useState<ImageCandidate[]>([]);
+  const [algorithmPosterSrc, setAlgorithmPosterSrc] = useState<string | null>(null);
+  const [showImagePicker, setShowImagePicker] = useState(false);
+  const [selectedPosterSrcs, setSelectedPosterSrcs] = useState<string[]>([]);
+  const [selectedLogoSrc, setSelectedLogoSrc] = useState<string | null>(null);
 
   function updateArtist(index: number, field: keyof Artist, value: string) {
     const updated = [...artists];
@@ -76,13 +89,17 @@ export function NewFestivalForm() {
             if (ext.region) setRegion(ext.region);
             if (ext.website_url) setWebsiteUrl(ext.website_url);
             if (ext.artists?.length) setArtists(ext.artists);
-            setPosterImageUrl(data.posterImageUrl);
             setLineupUrl(data.lineupUrl ?? "");
             setPosterPageUrl(data.posterPageUrl);
             setLineupPending(data.lineupPending ?? false);
             setLogoImageUrl(data.logoImageUrl ?? null);
-            setShowForm(true);
-            setExtracted(true);
+            setImageCandidates(data.imageCandidates);
+            setAlgorithmPosterSrc(data.algorithmPosterSrc);
+            // Pre-select algorithm picks
+            if (data.algorithmPosterSrc) setSelectedPosterSrcs([data.algorithmPosterSrc]);
+            setSelectedLogoSrc(data.logoImageUrl ?? data.algorithmPosterSrc ?? null);
+            setShowImagePicker(true);
+            // DO NOT call setShowForm(true) here — the image picker's Continue button does that
           }}
           onError={(message) => {
             setError(message);
@@ -114,19 +131,7 @@ export function NewFestivalForm() {
             </p>
           )}
 
-          {/* Poster preview */}
-          {posterImageUrl && (
-            <img
-              src={posterImageUrl}
-              alt="Festival poster"
-              className="w-full max-w-sm rounded mb-4"
-            />
-          )}
-
           {/* Hidden fields */}
-          {posterImageUrl && (
-            <input type="hidden" name="posterImageUrl" value={posterImageUrl} />
-          )}
           {posterPageUrl && (
             <input type="hidden" name="posterPageUrl" value={posterPageUrl} />
           )}

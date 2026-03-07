@@ -17,7 +17,17 @@ interface PageNode {
   children?: PageNode[];
 }
 
+interface ImageCandidate {
+  src: string;
+  alt: string;
+  sourcePage: string;
+  sourceClassification: "poster_only" | "lineup" | "fallback" | "og" | "favicon";
+  width: number | null;
+  height: number | null;
+}
+
 interface CrawlCompleteData {
+  scrapeLogId: string;
   extraction: {
     festival_name: string;
     dates: { start: string; end: string };
@@ -27,10 +37,11 @@ interface CrawlCompleteData {
     artists: Array<{ name: string; billing: "headliner" | "support" }>;
     lineup_pending?: boolean;
   };
-  source: "text" | "poster";
+  source: "text" | "poster" | "text+poster";
   lineupUrl: string | null;
   posterPageUrl: string | null;
-  posterImageUrl: string | null;
+  imageCandidates: ImageCandidate[];
+  algorithmPosterSrc: string | null;
   lineupPending: boolean;
   logoImageUrl: string | null;
   usage: {
