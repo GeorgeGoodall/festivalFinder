@@ -33,6 +33,7 @@ export class CrawlUsageTracker {
   private filterLinksUsages: AiUsage[] = [];
   private classifyPageUsages: AiUsage[] = [];
   private extractionUsages: AiUsage[] = [];
+  private inferRegionUsages: AiUsage[] = [];
 
   addFilterLinks(usage: AiUsage): void {
     this.filterLinksUsages.push(usage);
@@ -46,11 +47,16 @@ export class CrawlUsageTracker {
     this.extractionUsages.push(usage);
   }
 
+  addInferRegion(usage: AiUsage): void {
+    this.inferRegionUsages.push(usage);
+  }
+
   getSummary(): UsageSummary {
     const allUsages = [
       ...this.filterLinksUsages,
       ...this.classifyPageUsages,
       ...this.extractionUsages,
+      ...this.inferRegionUsages,
     ];
 
     const inputTokens = allUsages.reduce((sum, u) => sum + u.inputTokens, 0);
