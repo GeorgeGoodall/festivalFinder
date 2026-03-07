@@ -72,7 +72,7 @@ function ImageCard({
 
       <div className="p-2 text-xs text-gray-500 flex flex-col gap-1 flex-1">
         <span className="truncate" title={candidate.sourcePage}>{sourceLabel}</span>
-        {candidate.width && candidate.height && (
+        {candidate.width !== null && candidate.height !== null && (
           <span>{candidate.width}×{candidate.height}</span>
         )}
         <span className="capitalize text-gray-400">{candidate.sourceClassification.replace("_", " ")}</span>
