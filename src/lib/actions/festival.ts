@@ -100,6 +100,9 @@ export async function createFestival(formData: FormData) {
     });
   }
 
+  if (formData.get("publish") === "true") {
+    redirect("/admin/festivals/new");
+  }
   redirect(`/admin/festivals/${festival.id}`);
 }
 
