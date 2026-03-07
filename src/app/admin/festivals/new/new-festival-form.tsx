@@ -89,7 +89,8 @@ export function NewFestivalForm() {
             setAlgorithmPosterSrc(data.algorithmPosterSrc);
             // Pre-select algorithm picks
             if (data.algorithmPosterSrc) setSelectedPosterSrcs([data.algorithmPosterSrc]);
-            setSelectedLogoSrc(data.logoImageUrl ?? data.algorithmPosterSrc ?? null);
+            setSelectedLogoSrc(data.logoImageUrl ?? null);
+            setExtracted(true);
             setShowImagePicker(true);
             // DO NOT call setShowForm(true) here — the image picker's Continue button does that
           }}

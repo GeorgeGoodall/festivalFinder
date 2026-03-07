@@ -161,6 +161,8 @@ export function ImagePicker({
     [onArtistsMerge]
   );
 
+  const anyScrapeLoading = Array.from(scrapeStates.values()).some((s) => s.loading);
+
   function togglePoster(src: string) {
     if (selectedPosterSrcs.includes(src)) {
       onPosterChange(selectedPosterSrcs.filter((s) => s !== src));
@@ -240,7 +242,8 @@ export function ImagePicker({
       <button
         type="button"
         onClick={onContinue}
-        className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800"
+        disabled={anyScrapeLoading}
+        className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800 disabled:opacity-50"
       >
         Continue to Festival Details →
       </button>
