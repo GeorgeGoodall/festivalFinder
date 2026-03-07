@@ -55,7 +55,7 @@ export async function createFestival(formData: FormData) {
         ticketUrl: ticketUrl || null,
         lineupUrl: lineupUrl || null,
         posterPageUrl: posterPageUrl || null,
-        status: "draft",
+        status: formData.get("publish") === "true" ? "published" : "draft",
       },
     });
   } catch (error) {

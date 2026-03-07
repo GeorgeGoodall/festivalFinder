@@ -387,12 +387,22 @@ export function NewFestivalForm() {
             </button>
           )}
 
-          <button
-            type="submit"
-            className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800"
-          >
-            Create Festival
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800"
+            >
+              Create Festival
+            </button>
+            <button
+              type="submit"
+              name="publish"
+              value="true"
+              className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700"
+            >
+              Create &amp; Publish
+            </button>
+          </div>
         </form>
       )}
     </div>
