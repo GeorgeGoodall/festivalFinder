@@ -58,6 +58,8 @@ export interface ScrapeResult {
   faviconUrl: string | null;
   /** True if the page contains "Show More" / "Load More" style buttons */
   hasShowMore: boolean;
+  /** True if the page is built with a JS-rendering platform (Wix, Squarespace, Webflow) */
+  isJsRendered: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -309,6 +311,38 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
     hasShowMore = $('[data-testid*="show-more"], [data-testid*="load-more"]').length > 0;
   }
 
+  // --- Detect JS-rendered platforms (Wix, Squarespace, Webflow) ---
+  let isJsRendered = false;
+  // Wix: generator meta tag or Wix CDN scripts
+  if (
+    $('meta[name="generator"]').attr("content")?.toLowerCase().includes("wix") ||
+    $('script[src*="static.parastorage.com"], script[src*="static.wixstatic.com"]').length > 0 ||
+    $('[data-mesh-id]').length > 0
+  ) {
+    isJsRendered = true;
+  }
+  // Squarespace: generator meta or Squarespace script URLs
+  if (
+    !isJsRendered &&
+    (
+      $('meta[name="generator"]').attr("content")?.toLowerCase().includes("squarespace") ||
+      $('script[src*="squarespace.com"]').length > 0 ||
+      $('link[href*="squarespace.com"]').length > 0
+    )
+  ) {
+    isJsRendered = true;
+  }
+  // Webflow: generator meta or Webflow script URLs
+  if (
+    !isJsRendered &&
+    (
+      $('meta[name="generator"]').attr("content")?.toLowerCase().includes("webflow") ||
+      $('script[src*="webflow.com"]').length > 0
+    )
+  ) {
+    isJsRendered = true;
+  }
+
   // --- Clean text ---
   $(
     "script, style, nav, footer, header, iframe, noscript, svg, form"
@@ -321,5 +355,5 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  return { url, text, jsonLd, links, images, title, faviconUrl, hasShowMore };
+  return { url, text, jsonLd, links, images, title, faviconUrl, hasShowMore, isJsRendered };
 }

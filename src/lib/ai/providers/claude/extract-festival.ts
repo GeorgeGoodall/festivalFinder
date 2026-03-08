@@ -110,6 +110,11 @@ const extractionTool: Anthropic.Messages.Tool = {
         description:
           "true if the festival lineup has not been announced yet — e.g. 'lineup coming soon', 'artists TBA', 'acts to be announced', 'lineup to follow'. false if artists are listed.",
       },
+      lineup_may_be_incomplete: {
+        type: "boolean" as const,
+        description:
+          "true if there are signals the artist list may be incomplete due to JavaScript lazy-loading or pagination — e.g. text like 'view all artists', 'see all acts', 'showing X of Y', 'load more', pagination controls visible, or the list ends abruptly mid-alphabet or at a suspiciously round number. false if the list appears complete.",
+      },
     },
     required: [
       "festival_name",
@@ -167,6 +172,7 @@ Rules:
 - If dates are unclear, use your best estimate. If year is missing, assume 2026
 - If any field is unclear, use an empty string
 - Set lineup_pending to true if the site says the lineup has not yet been announced (e.g. "coming soon", "TBA", "to be announced", "lineup coming soon"). Set to false if artists are listed.
+- Set lineup_may_be_incomplete to true if you see signals the artist list may be truncated by lazy-loading or pagination (e.g. "view all artists", "see all acts", "showing X of Y artists", "load more", pagination numbers, or an artist list that ends abruptly). Set to false otherwise.
 - Extract a short (2-3 sentence) description of the festival from about/info content — summarise what kind of festival it is, where and when
 - Extract ticket_url if a dedicated ticket purchase page is linked
 - Extract social_links: full URLs only (not handles), leave empty string if not found

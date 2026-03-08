@@ -13,8 +13,11 @@ import {
 // ---------------------------------------------------------------------------
 
 const BROWSER_TIMEOUT_MS = 30_000;
-const CLICK_SETTLE_MS = 2_000;
+const CLICK_SETTLE_MS = 1_500;
+const SCROLL_SETTLE_MS = 1_200;
 const MAX_CLICKS = 15;
+const MAX_SCROLL_PASSES = 20;
+const SCROLL_STEP_PX = 600;
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -252,7 +255,75 @@ function parseRenderedHtml(html: string, url: string): ScrapeResult {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  return { url, text, jsonLd, links, images, title, faviconUrl, hasShowMore: false };
+  return { url, text, jsonLd, links, images, title, faviconUrl, hasShowMore: false, isJsRendered: false };
+}
+
+// ---------------------------------------------------------------------------
+// Text extraction and snapshot merging
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract cleaned body text from HTML (without full structural parsing).
+ * Used for cheap snapshot comparisons during scrolling.
+ */
+function extractBodyText(html: string): string {
+  const $ = cheerio.load(html);
+  $("script, style, nav, footer, header, iframe, noscript, svg, form").remove();
+  $("[role='navigation'], [role='banner'], [role='contentinfo']").remove();
+  return $("body").text().replace(/\s+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * Merge multiple text snapshots into a single combined text.
+ *
+ * Uses 4-gram novelty detection: processes snapshots longest-first (most
+ * content as the base), then scans each remaining snapshot for any sequence
+ * of 4 consecutive words not already seen. When found, the surrounding
+ * context (~12 words) is appended with a " ... " separator.
+ *
+ * This captures content that was visible at one scroll position but removed
+ * later (e.g. a WordPress JS filter that hides items after scrolling), while
+ * avoiding duplicating content that is stable across snapshots.
+ */
+function mergeTextSnapshots(snapshots: string[]): string {
+  if (snapshots.length === 0) return "";
+  if (snapshots.length === 1) return snapshots[0];
+
+  // Longest-first so the richest snapshot becomes the base
+  const sorted = [...snapshots].sort((a, b) => b.length - a.length);
+  const base = sorted[0];
+
+  // Seed the seen-set from the base snapshot
+  const seen = new Set<string>();
+  const baseWords = base.split(" ");
+  for (let i = 0; i + 3 < baseWords.length; i++) {
+    seen.add(`${baseWords[i]} ${baseWords[i + 1]} ${baseWords[i + 2]} ${baseWords[i + 3]}`);
+  }
+
+  let result = base;
+
+  for (const snapshot of sorted.slice(1)) {
+    const words = snapshot.split(" ");
+    let i = 0;
+    while (i + 3 < words.length) {
+      const gram = `${words[i]} ${words[i + 1]} ${words[i + 2]} ${words[i + 3]}`;
+      if (!seen.has(gram)) {
+        // Novel 4-gram — append surrounding context
+        const end = Math.min(i + 12, words.length);
+        const chunk = words.slice(i, end).join(" ");
+        result += " ... " + chunk;
+        // Mark new 4-grams as seen so we don't re-add adjacent overlaps
+        for (let j = i; j + 3 < end; j++) {
+          seen.add(`${words[j]} ${words[j + 1]} ${words[j + 2]} ${words[j + 3]}`);
+        }
+        i = end;
+      } else {
+        i++;
+      }
+    }
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -279,64 +350,129 @@ export async function scrapeUrlWithBrowser(
     const page = await context.newPage();
     page.setDefaultTimeout(BROWSER_TIMEOUT_MS);
 
-    log("Navigating to page (waiting for load event)...");
+    log("Navigating to page...");
     await page.goto(url, {
-      waitUntil: "load",
+      waitUntil: "domcontentloaded",
       timeout: BROWSER_TIMEOUT_MS,
     });
-    // Brief pause for JS frameworks to render after load event
+
+    // Capture pre-JS HTML immediately (before any framework modifies the DOM).
+    // Server-rendered sites (e.g. WordPress) often have MORE content here than
+    // after JS runs (which may apply filters, hide items, etc.).
+    const preJsHtml = await page.content();
+    const textSnapshots: string[] = [extractBodyText(preJsHtml)];
+    log(`DOM ready — captured pre-JS snapshot (${preJsHtml.length.toLocaleString()} bytes)`);
+
+    // Wait for JS frameworks to render dynamic content (Wix, React, etc.)
     await page.waitForTimeout(2_000);
 
     const pageTitle = await page.title();
-    log(`Page loaded${pageTitle ? `: "${pageTitle}"` : ""}`);
+    log(`Page settled${pageTitle ? `: "${pageTitle}"` : ""}`);
 
-    // --- Click "Show More" buttons ---
+    // Snapshot after JS settles
+    textSnapshots.push(extractBodyText(await page.content()));
+
+    // --- Scroll + click loop ---
+    // Scroll down incrementally to trigger lazy-load, clicking any "Show More"
+    // buttons that appear along the way. Repeat until page height stabilises.
     let totalClicks = 0;
+    let lastHeight = 0;
+    let stableCount = 0;
 
-    for (let i = 0; i < MAX_CLICKS; i++) {
-      let clicked = false;
-
+    for (let pass = 0; pass < MAX_SCROLL_PASSES; pass++) {
+      // Click any visible "Show More" / "Load More" buttons before scrolling
       for (const selector of SHOW_MORE_SELECTORS) {
+        if (totalClicks >= MAX_CLICKS) break;
         try {
           const button = page.locator(selector).first();
-          if (await button.isVisible({ timeout: 500 })) {
-            log(`Clicking "Show More" button (${totalClicks + 1}/${MAX_CLICKS})...`);
+          if (await button.isVisible({ timeout: 300 })) {
+            log(`Clicking "Show More" button (${totalClicks + 1})...`);
             await button.click();
             totalClicks++;
-            clicked = true;
-            log("Waiting for content to settle...");
             await page.waitForTimeout(CLICK_SETTLE_MS);
-            break; // restart the selector loop after each click
           }
         } catch {
-          // selector not found or not visible — try next
+          // not found or not clickable — continue
         }
       }
 
-      if (!clicked) {
-        if (totalClicks > 0) {
-          log(`No more "Show More" buttons found (clicked ${totalClicks} total).`);
-        } else {
-          log("No 'Show More' buttons found — page content is fully visible.");
+      // Scroll down by one step
+      await page.evaluate((step) => window.scrollBy(0, step), SCROLL_STEP_PX);
+      await page.waitForTimeout(SCROLL_SETTLE_MS);
+
+      // Snapshot after each scroll — captures content that may appear or
+      // disappear as JS responds to scroll position
+      textSnapshots.push(extractBodyText(await page.content()));
+
+      // Check if we've reached the bottom and page height has stabilised
+      const currentHeight = await page.evaluate(() => document.body.scrollHeight);
+      const scrollY = await page.evaluate(() => window.scrollY + window.innerHeight);
+
+      if (currentHeight === lastHeight) {
+        stableCount++;
+        if (stableCount >= 2) {
+          // Height unchanged for 2 consecutive passes — we're done
+          log(`Page fully scrolled (${pass + 1} passes, ${totalClicks} button click(s)).`);
+          break;
         }
-        break;
+      } else {
+        stableCount = 0;
+        log(`Scrolling... (${Math.round((scrollY / currentHeight) * 100)}% of page)`);
+      }
+      lastHeight = currentHeight;
+
+      if (scrollY >= currentHeight) {
+        // Reached the bottom — do one final button check then stop
+        for (const selector of SHOW_MORE_SELECTORS) {
+          if (totalClicks >= MAX_CLICKS) break;
+          try {
+            const button = page.locator(selector).first();
+            if (await button.isVisible({ timeout: 300 })) {
+              log(`Clicking "Show More" button (${totalClicks + 1})...`);
+              await button.click();
+              totalClicks++;
+              await page.waitForTimeout(CLICK_SETTLE_MS);
+            }
+          } catch {
+            // not found
+          }
+        }
+        // Scroll back to bottom in case new content loaded
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(SCROLL_SETTLE_MS);
+        const newHeight = await page.evaluate(() => document.body.scrollHeight);
+        if (newHeight === currentHeight) {
+          log(`Reached bottom of page (${pass + 1} passes, ${totalClicks} button click(s)).`);
+          break;
+        }
+        lastHeight = newHeight;
       }
     }
 
-    if (totalClicks >= MAX_CLICKS) {
-      log(`Reached click limit (${MAX_CLICKS}).`);
-    }
-
-    // --- Extract fully-rendered HTML ---
+    // --- Final snapshot + merge ---
+    // Parse the final rendered HTML for structural fields (links, images, etc.)
+    // then override .text with the merged union of all scroll snapshots.
     log("Extracting rendered HTML...");
-    const html = await page.content();
+    const finalHtml = await page.content();
+    textSnapshots.push(extractBodyText(finalHtml));
 
-    // --- Parse with cheerio ---
-    log("Parsing content...");
-    const result = parseRenderedHtml(html, url);
+    // Use the pre-JS HTML for structural fields if it has more links/images
+    // (JS frameworks sometimes strip server-rendered links during hydration)
+    const preJsResult = parseRenderedHtml(preJsHtml, url);
+    const finalResult = parseRenderedHtml(finalHtml, url);
+    const structural = preJsResult.links.length >= finalResult.links.length
+      ? preJsResult
+      : finalResult;
 
-    log(`Extraction complete — ${result.text.length.toLocaleString()} chars, ${result.images.length} images, ${result.links.length} links.`);
-    return result;
+    // Merge all text snapshots — union of everything ever visible on the page
+    const mergedText = mergeTextSnapshots(textSnapshots);
+    log(
+      `Merged ${textSnapshots.length} snapshots — ${mergedText.length.toLocaleString()} chars` +
+      ` (longest single: ${Math.max(...textSnapshots.map((s) => s.length)).toLocaleString()})`,
+    );
+    log(`Extraction complete — ${structural.links.length} links, ${structural.images.length} images.`);
+
+    return { ...structural, text: mergedText };
   } finally {
     await browser.close();
   }

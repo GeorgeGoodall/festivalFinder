@@ -31,6 +31,7 @@ export interface ExtractionResult {
   age_restriction?: string;
   artists: ExtractedArtist[];
   lineup_pending?: boolean;
+  lineup_may_be_incomplete?: boolean;
 }
 
 export interface ExtractionUsage {

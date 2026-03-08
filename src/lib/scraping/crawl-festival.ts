@@ -322,14 +322,16 @@ export async function crawlFestival(
         if (!discoveredLineupUrl) {
           discoveredLineupUrl = page.url;
         }
-        if (page.hasShowMore && !deepScrapeCandidate) {
-          deepScrapeCandidate = {
-            url: page.url,
-            reason: "Artist page has a \"Show More\" button — content may be hidden behind JavaScript.",
-          };
+        if ((page.hasShowMore || page.isJsRendered) && !deepScrapeCandidate) {
+          const reason = page.isJsRendered
+            ? "Artist page is built with a JS-rendering platform (Wix/Squarespace/Webflow) — artists may not load in static HTML."
+            : "Artist page has a \"Show More\" button — content may be hidden behind JavaScript.";
+          deepScrapeCandidate = { url: page.url, reason };
           emit({
             stage: "classifying",
-            message: `Detected "Show More" on artist page — deep scrape recommended`,
+            message: page.isJsRendered
+              ? `Detected JS-rendered platform on artist page — deep scrape recommended`
+              : `Detected "Show More" on artist page — deep scrape recommended`,
             usage: tracker.getSummary(),
           });
         }
@@ -484,6 +486,20 @@ export async function crawlFestival(
     emit({
       stage: "extracting",
       message: "Lineup not yet announced — skipping poster search.",
+      usage: tracker.getSummary(),
+    });
+  }
+
+  // If AI flagged the lineup may be incomplete and cheerio didn't already detect
+  // a "Show More" button, set deepScrapeCandidate using the discovered lineup URL.
+  if (extraction.lineup_may_be_incomplete && !deepScrapeCandidate && discoveredLineupUrl) {
+    deepScrapeCandidate = {
+      url: discoveredLineupUrl,
+      reason: "AI detected signals that the artist list may be incomplete (e.g. lazy-loading or pagination). Deep scrape recommended.",
+    };
+    emit({
+      stage: "extracting",
+      message: "AI detected incomplete lineup — deep scrape recommended",
       usage: tracker.getSummary(),
     });
   }
