@@ -1,5 +1,4 @@
 import * as cheerio from "cheerio";
-import type { Element } from "domhandler";
 import { chromium } from "playwright";
 
 import {
