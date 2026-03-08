@@ -127,7 +127,6 @@ export function SearchFilters() {
         >
           <option value="">All ages</option>
           <option value="family-friendly">Family-friendly</option>
-          <option value="all ages">All ages only</option>
           <option value="18+">18+</option>
         </select>
         <button
