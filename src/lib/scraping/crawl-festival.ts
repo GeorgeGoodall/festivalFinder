@@ -656,7 +656,7 @@ export async function crawlFestival(
 
             if (imagesForGemini.length > 0) {
               const selectResult = await selectPosterWithGemini(imagesForGemini);
-              // TODO Task 7: tracker.addSelectPoster(selectResult.usage);
+              tracker.addSelectPoster(selectResult.usage);
 
               // Reorder: put Gemini's pick first, keep rest in score order
               const winningSrc = imagesForGemini[selectResult.selectedIndex].src;
