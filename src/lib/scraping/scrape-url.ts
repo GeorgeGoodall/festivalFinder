@@ -145,7 +145,7 @@ function hasImageExtension(src: string): boolean {
   }
 }
 
-function extractImageContext(el: Element, $: cheerio.CheerioAPI): string {
+export function extractImageContext(el: Element, $: cheerio.CheerioAPI): string {
   const parts: string[] = [];
   const $el = $(el);
 

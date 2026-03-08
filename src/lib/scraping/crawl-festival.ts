@@ -66,6 +66,8 @@ export interface ImageCandidate {
   sourceClassification: "poster_only" | "lineup" | "fallback" | "og" | "favicon";
   width: number | null;
   height: number | null;
+  /** Nearby heading, parent class/id, figcaption — captured during scraping */
+  surroundingContext: string;
 }
 
 export interface DeepScrapeCandidate {
@@ -542,6 +544,7 @@ export async function crawlFestival(
       sourceClassification: "poster_only" as const,
       width: c.img.width,
       height: c.img.height,
+      surroundingContext: c.img.surroundingContext,
     })),
     ...lineupImages.map((c) => ({
       src: c.img.src,
@@ -550,6 +553,7 @@ export async function crawlFestival(
       sourceClassification: "lineup" as const,
       width: c.img.width,
       height: c.img.height,
+      surroundingContext: c.img.surroundingContext,
     })),
     ...fallbackImages.map((c) => ({
       src: c.img.src,
@@ -558,6 +562,7 @@ export async function crawlFestival(
       sourceClassification: "fallback" as const,
       width: c.img.width,
       height: c.img.height,
+      surroundingContext: c.img.surroundingContext,
     })),
     ...(ogImage
       ? [{
@@ -567,6 +572,7 @@ export async function crawlFestival(
           sourceClassification: "og" as const,
           width: ogImage.img.width,
           height: ogImage.img.height,
+          surroundingContext: "",   // og:image has no DOM context
         }]
       : []),
   ];
@@ -580,6 +586,7 @@ export async function crawlFestival(
       sourceClassification: "favicon",
       width: null,
       height: null,
+      surroundingContext: "",   // favicon has no DOM context
     });
   }
 

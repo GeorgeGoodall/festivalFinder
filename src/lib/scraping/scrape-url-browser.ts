@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import type { Element } from "domhandler";
 import { chromium } from "playwright";
 
 import {
@@ -6,6 +7,7 @@ import {
   LinkWithContext,
   ImageCandidate,
   normalizeUrl,
+  extractImageContext,
 } from "./scrape-url";
 
 // ---------------------------------------------------------------------------
@@ -202,7 +204,7 @@ function parseRenderedHtml(html: string, url: string): ScrapeResult {
         alt: $(el).attr("alt") ?? "",
         width: w !== null && !isNaN(w) ? w : null,
         height: h !== null && !isNaN(h) ? h : null,
-        surroundingContext: "",
+        surroundingContext: extractImageContext(el, $),
       });
     }
   });
