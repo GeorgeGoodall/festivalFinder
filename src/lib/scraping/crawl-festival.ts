@@ -582,6 +582,12 @@ export async function crawlFestival(
       // Score and rank image candidates
       // -----------------------------------------------------------------------
 
+      emit({
+        stage: "extracting",
+        message: `No artist page found (max ${maxArtistsOnSinglePage} artists on any one page) — scanning poster`,
+        usage: tracker.getSummary(),
+      });
+
       const scored = scorePosterCandidates(imageCandidates);
 
       console.log(`[poster-score] Scored ${scored.length} candidate(s):`);
@@ -612,7 +618,7 @@ export async function crawlFestival(
         if (unambiguous) {
           emit({
             stage: "poster_search",
-            message: `Clear poster candidate (score: ${scored[0].score}) — ${(() => { try { return new URL(scored[0].candidate.src).pathname; } catch { return scored[0].candidate.src; } })()}`,
+            message: `Clear poster candidate (score: ${scored[0].score}) — ${urlPathname(scored[0].candidate.src)}`,
             usage: tracker.getSummary(),
           });
           console.log(`[poster-score] Unambiguous winner (score ${scored[0].score}, gap ${scored[0].score - (scored[1]?.score ?? 0)})`);
@@ -660,7 +666,7 @@ export async function crawlFestival(
                 rankedCandidates = [winner, ...rest];
                 emit({
                   stage: "poster_search",
-                  message: `Gemini selected: ${(() => { try { return new URL(winningSrc).pathname; } catch { return winningSrc; } })()}`,
+                  message: `Gemini selected: ${urlPathname(winningSrc)}`,
                   usage: tracker.getSummary(),
                 });
                 console.log(`[poster-select] Gemini winner: ${winningSrc}`);
@@ -694,7 +700,7 @@ export async function crawlFestival(
           if (signal?.aborted) break;
 
           attemptCount++;
-          const candidatePath = (() => { try { return new URL(sc.candidate.src).pathname; } catch { return sc.candidate.src; } })();
+          const candidatePath = urlPathname(sc.candidate.src);
 
           emit({
             stage: "extracting",
