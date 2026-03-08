@@ -547,27 +547,12 @@ export async function crawlFestival(
   }
 
   // -----------------------------------------------------------------------
-  // 5b. Algorithm poster pick — choose best candidate without fetching.
-  //     Prefer images with known large dimensions or no dimension info.
-  //     Priority order is already encoded in imageCandidates order.
+  // 5b. Algorithm poster pick — use scorer's top result so this stays
+  //     consistent with whatever image the extraction loop will try first.
   // -----------------------------------------------------------------------
 
-  const MIN_DIM = 800;
-  let algorithmPosterSrc: string | null = null;
-
-  for (const candidate of imageCandidates) {
-    if (candidate.sourceClassification === "favicon") continue;
-
-    const w = candidate.width ?? 0;
-    const h = candidate.height ?? 0;
-    const hasDimensions = candidate.width !== null || candidate.height !== null;
-
-    // Skip if dimensions are known and too small
-    if (hasDimensions && (w < MIN_DIM || h < MIN_DIM)) continue;
-
-    algorithmPosterSrc = candidate.src;
-    break;
-  }
+  const algorithmScored = scorePosterCandidates(imageCandidates);
+  const algorithmPosterSrc: string | null = algorithmScored[0]?.candidate.src ?? null;
 
   // -----------------------------------------------------------------------
   // 5c. Poster extraction — scoring, disambiguation, retry loop
