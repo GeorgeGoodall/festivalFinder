@@ -32,7 +32,11 @@ export interface ExtractionResult {
   artists: ExtractedArtist[];
   lineup_pending?: boolean;
   lineup_may_be_incomplete?: boolean;
-  /** false if the image is not a lineup poster (banner, logo, sponsor graphic, etc.) */
+  /**
+   * true  = image confirmed as a lineup poster by Claude
+   * false = image confirmed as NOT a lineup poster (banner, logo, sponsor, etc.)
+   * undefined = not applicable (result from text extraction, not image extraction)
+   */
   is_lineup_poster?: boolean;
 }
 
