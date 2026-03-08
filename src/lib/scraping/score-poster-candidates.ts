@@ -60,7 +60,9 @@ function filenameOf(src: string): string {
 }
 
 function containsYear(text: string, year: number): boolean {
-  return text.includes(String(year));
+  // Use word-boundary check to avoid matching year inside longer digit sequences
+  // e.g. "12026" should not match year 2026
+  return new RegExp(`(?<![0-9])${year}(?![0-9])`).test(text);
 }
 
 function hasKeyword(text: string, keywords: string[]): boolean {
@@ -103,7 +105,7 @@ export function scorePosterCandidates(
       if (hasKeyword(urlPath, ["poster", "flyer"])) {
         breakdown.urlKeyword += W.KEYWORD_POSTER_FLYER_URL;
       }
-      if (hasKeyword(urlPath, ["lineup", "artists", "artist", "performers", "acts"])) {
+      if (hasKeyword(urlPath, ["lineup", "artists", "performers", "acts"])) {
         breakdown.urlKeyword += W.KEYWORD_LINEUP_ARTISTS_URL;
       }
 
