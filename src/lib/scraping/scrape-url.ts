@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import type { Element } from "domhandler";
 import { createHash } from "crypto";
 
 // ---------------------------------------------------------------------------
@@ -46,6 +47,8 @@ export interface ImageCandidate {
   alt: string;
   width: number | null;
   height: number | null;
+  /** Nearby heading, parent class/id, and figcaption text — used for poster scoring */
+  surroundingContext: string;
 }
 
 export interface ScrapeResult {
@@ -142,6 +145,30 @@ function hasImageExtension(src: string): boolean {
   }
 }
 
+function extractImageContext(el: Element, $: cheerio.CheerioAPI): string {
+  const parts: string[] = [];
+  const $el = $(el);
+
+  const parent = $el.parent();
+  const cls = parent.attr("class") ?? "";
+  const id = parent.attr("id") ?? "";
+  if (cls) parts.push(cls);
+  if (id) parts.push(id);
+
+  const figcaption = $el.closest("figure").find("figcaption").first().text().trim();
+  if (figcaption) parts.push(figcaption);
+
+  const heading = $el
+    .closest("section, article, div")
+    .find("h1, h2, h3, h4")
+    .first()
+    .text()
+    .trim();
+  if (heading) parts.push(heading);
+
+  return parts.join(" ").replace(/\s+/g, " ").trim().slice(0, 300);
+}
+
 // ---------------------------------------------------------------------------
 // Main scrape function
 // ---------------------------------------------------------------------------
@@ -213,7 +240,7 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
       const resolved = new URL(ogImage, url).toString();
       if (!seenSrc.has(resolved)) {
         seenSrc.add(resolved);
-        images.push({ src: resolved, alt: "og:image", width: null, height: null });
+        images.push({ src: resolved, alt: "og:image", width: null, height: null, surroundingContext: "" });
       }
     } catch {
       // skip invalid og:image
@@ -255,6 +282,7 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
         alt: $(el).attr("alt") ?? "",
         width: w !== null && !isNaN(w) ? w : null,
         height: h !== null && !isNaN(h) ? h : null,
+        surroundingContext: extractImageContext(el, $),
       });
     }
   });

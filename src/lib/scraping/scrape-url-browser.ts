@@ -160,6 +160,7 @@ function parseRenderedHtml(html: string, url: string): ScrapeResult {
           alt: "og:image",
           width: null,
           height: null,
+          surroundingContext: "",
         });
       }
     } catch {
@@ -201,6 +202,7 @@ function parseRenderedHtml(html: string, url: string): ScrapeResult {
         alt: $(el).attr("alt") ?? "",
         width: w !== null && !isNaN(w) ? w : null,
         height: h !== null && !isNaN(h) ? h : null,
+        surroundingContext: "",
       });
     }
   });
