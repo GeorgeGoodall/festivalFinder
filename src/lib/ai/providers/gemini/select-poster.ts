@@ -9,6 +9,40 @@ import type { AiUsage } from "@/lib/scraping/scrape-usage";
 const MODEL = "gemini-2.5-flash";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
+const model = genAI.getGenerativeModel({
+  model: MODEL,
+  tools: [
+    {
+      functionDeclarations: [
+        {
+          name: "select_lineup_poster",
+          description: "Select the index of the image most likely to be a festival lineup poster.",
+          parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+              selected_index: {
+                type: SchemaType.NUMBER,
+                description: "Zero-based index of the image that is a festival lineup poster, or -1 if none appear to be a lineup poster.",
+              },
+              reason: {
+                type: SchemaType.STRING,
+                description: "Brief explanation of why this image was selected.",
+              },
+            },
+            required: ["selected_index", "reason"],
+          },
+        },
+      ],
+    },
+  ],
+  toolConfig: {
+    functionCallingConfig: {
+      mode: FunctionCallingMode.ANY,
+      allowedFunctionNames: ["select_lineup_poster"],
+    },
+  },
+});
+
 export interface ImageForDisambiguation {
   base64: string;
   contentType: string;
@@ -30,40 +64,6 @@ export async function selectPosterWithGemini(
   if (images.length === 1) {
     return { selectedIndex: 0, usage: { inputTokens: 0, outputTokens: 0, model: MODEL } };
   }
-
-  const model = genAI.getGenerativeModel({
-    model: MODEL,
-    tools: [
-      {
-        functionDeclarations: [
-          {
-            name: "select_lineup_poster",
-            description: "Select the index of the image most likely to be a festival lineup poster.",
-            parameters: {
-              type: SchemaType.OBJECT,
-              properties: {
-                selected_index: {
-                  type: SchemaType.NUMBER,
-                  description: "Zero-based index of the image that is a festival lineup poster, or -1 if none appear to be a lineup poster.",
-                },
-                reason: {
-                  type: SchemaType.STRING,
-                  description: "Brief explanation of why this image was selected.",
-                },
-              },
-              required: ["selected_index", "reason"],
-            },
-          },
-        ],
-      },
-    ],
-    toolConfig: {
-      functionCallingConfig: {
-        mode: FunctionCallingMode.ANY,
-        allowedFunctionNames: ["select_lineup_poster"],
-      },
-    },
-  });
 
   // Build content parts: text prompt + one image per candidate
   const parts: Part[] = [
@@ -101,6 +101,8 @@ Examine each image and call select_lineup_poster with the index (0-based) of the
     selectedIndex = args.selected_index >= 0 && args.selected_index < images.length
       ? args.selected_index
       : 0;
+  } else {
+    console.warn("[poster-select] Gemini returned no function call — falling back to index 0");
   }
 
   return {
