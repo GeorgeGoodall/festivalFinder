@@ -8,6 +8,9 @@ import { CrawlUsageTracker, type UsageSummary } from "./scrape-usage";
 import { supabaseAdmin } from "@/lib/supabase";
 import { inferRegionFromLocation } from "@/lib/ai/infer-region";
 import { UK_REGIONS } from "@/lib/constants";
+import { scorePosterCandidates, isUnambiguousWinner } from "./score-poster-candidates";
+import { selectPosterWithGemini } from "@/lib/ai/providers/gemini/select-poster";
+import type { ImageForDisambiguation } from "@/lib/ai/providers/gemini/select-poster";
 
 // ---------------------------------------------------------------------------
 // Internal image bucket type
@@ -26,6 +29,8 @@ interface PosterCandidate {
 const MAX_DEPTH = 3;
 const MAX_PAGES = 10;
 const MAX_AI_CALLS = 20;
+const MAX_POSTER_ATTEMPTS = 3;
+const GEMINI_DISAMBIGUATION_TOP_N = 5;
 
 // ---------------------------------------------------------------------------
 // Exported types
@@ -382,16 +387,16 @@ export async function crawlFestival(
   }
 
   // -----------------------------------------------------------------------
-  // 4. Final extraction
+  // 4. Text extraction
   // -----------------------------------------------------------------------
 
   let extraction: ExtractionResult;
   let source: "text" | "poster" | "text+poster";
+  let hasRichLineupPage = false;
+  let maxArtistsOnSinglePage = 0;
+  const hasTextContent = lineupContent.length > 0 || infoContent.length > 0;
 
-  const bestCandidateForExtraction =
-    posterPageImages[0] ?? lineupImages[0] ?? fallbackImages[0] ?? ogImage;
-
-  if (lineupContent.length > 0 || infoContent.length > 0) {
+  if (hasTextContent) {
     emit({
       stage: "extracting",
       message: `Extracting festival details from ${lineupContent.length + infoContent.length + aboutContent.length} page(s)...`,
@@ -412,14 +417,13 @@ export async function crawlFestival(
     // We do this by counting how many of the extracted artist names appear in
     // each page's raw text — free, no extra AI calls needed.
     const artistNames = extraction.artists.map((a) => a.name.toLowerCase());
-    let maxArtistsOnSinglePage = 0;
     for (const page of lineupContent) {
       const pageText = page.text.toLowerCase();
       const count = artistNames.filter((name) => pageText.includes(name)).length;
       if (count > maxArtistsOnSinglePage) maxArtistsOnSinglePage = count;
     }
 
-    const hasRichLineupPage = maxArtistsOnSinglePage >= 20;
+    hasRichLineupPage = maxArtistsOnSinglePage >= 20;
 
     if (hasRichLineupPage) {
       emit({
@@ -427,62 +431,14 @@ export async function crawlFestival(
         message: `Artist page found (${maxArtistsOnSinglePage} artists on one page) — not scanning poster`,
         usage: tracker.getSummary(),
       });
-    } else if (!extraction.lineup_pending && bestCandidateForExtraction) {
-      emit({
-        stage: "extracting",
-        message: `No artist page found (max ${maxArtistsOnSinglePage} artists on any one page) — scanning poster`,
-        usage: tracker.getSummary(),
-      });
-
-      const posterResult = await extractFromPoster(bestCandidateForExtraction.img.src);
-      tracker.addExtraction(posterResult.usage);
-
-      // Merge poster artists into text extraction, deduplicating by name
-      const existingNames = new Set(extraction.artists.map((a) => a.name.toLowerCase()));
-      const newArtists = posterResult.extraction.artists.filter(
-        (a) => !existingNames.has(a.name.toLowerCase())
-      );
-
-      if (newArtists.length > 0) {
-        extraction = { ...extraction, artists: [...extraction.artists, ...newArtists] };
-        source = "text+poster";
-        emit({
-          stage: "extracting",
-          message: `Poster added ${newArtists.length} additional artist(s) — total: ${extraction.artists.length}`,
-          usage: tracker.getSummary(),
-        });
-      } else {
-        emit({
-          stage: "extracting",
-          message: "Poster scan complete — no additional artists found",
-          usage: tracker.getSummary(),
-        });
-      }
-    } else if (!extraction.lineup_pending) {
-      emit({
-        stage: "extracting",
-        message: `No artist page found (max ${maxArtistsOnSinglePage} artists on any one page) — no poster available to scan`,
-        usage: tracker.getSummary(),
-      });
     }
-  } else if (bestCandidateForExtraction) {
-    emit({
-      stage: "poster_fallback",
-      message: "No HTML content found. Extracting from poster image...",
-      usage: tracker.getSummary(),
-    });
-
-    const posterResult = await extractFromPoster(bestCandidateForExtraction.img.src);
-    tracker.addExtraction(posterResult.usage);
-    extraction = posterResult.extraction;
-    source = "poster";
   } else {
-    throw new Error(
-      "Could not find any lineup, festival info, or poster images"
-    );
+    // Placeholder — will be set in the poster extraction section below
+    extraction = null as unknown as ExtractionResult;
+    source = "poster";
   }
 
-  lineupPending = extraction.lineup_pending ?? false;
+  lineupPending = extraction?.lineup_pending ?? false;
 
   if (lineupPending) {
     emit({
@@ -494,7 +450,7 @@ export async function crawlFestival(
 
   // If AI flagged the lineup may be incomplete and cheerio didn't already detect
   // a "Show More" button, set deepScrapeCandidate using the discovered lineup URL.
-  if (extraction.lineup_may_be_incomplete && !deepScrapeCandidate && discoveredLineupUrl) {
+  if (extraction?.lineup_may_be_incomplete && !deepScrapeCandidate && discoveredLineupUrl) {
     deepScrapeCandidate = {
       url: discoveredLineupUrl,
       reason: "AI detected signals that the artist list may be incomplete (e.g. lazy-loading or pagination). Deep scrape recommended.",
@@ -511,7 +467,7 @@ export async function crawlFestival(
   // -----------------------------------------------------------------------
 
   if (
-    extraction.location &&
+    extraction?.location &&
     (!extraction.region ||
       !(UK_REGIONS as readonly string[]).includes(extraction.region))
   ) {
@@ -611,6 +567,248 @@ export async function crawlFestival(
 
     algorithmPosterSrc = candidate.src;
     break;
+  }
+
+  // -----------------------------------------------------------------------
+  // 5c. Poster extraction — scoring, disambiguation, retry loop
+  //     Runs AFTER imageCandidates is built so scoring has full context.
+  // -----------------------------------------------------------------------
+
+  if (hasTextContent) {
+    if (hasRichLineupPage) {
+      // Already emitted message above — skip poster scan
+    } else if (!extraction.lineup_pending) {
+      // -----------------------------------------------------------------------
+      // Score and rank image candidates
+      // -----------------------------------------------------------------------
+
+      const scored = scorePosterCandidates(imageCandidates);
+
+      console.log(`[poster-score] Scored ${scored.length} candidate(s):`);
+      for (const sc of scored.slice(0, 8)) {
+        console.log(
+          `  [${sc.score.toString().padStart(3)}] ${sc.candidate.src}` +
+          `\n         breakdown: source=${sc.breakdown.source} url=${sc.breakdown.urlKeyword}` +
+          ` year=${sc.breakdown.year} alt=${sc.breakdown.altKeyword}` +
+          ` ctx=${sc.breakdown.contextKeyword} ratio=${sc.breakdown.aspectRatio}` +
+          ` dims=${sc.breakdown.dimensions}`
+        );
+      }
+
+      if (scored.length === 0) {
+        emit({
+          stage: "extracting",
+          message: "No poster candidates found — skipping poster scan",
+          usage: tracker.getSummary(),
+        });
+      } else {
+        // -----------------------------------------------------------------------
+        // Disambiguation: if ambiguous, ask Gemini to pick
+        // -----------------------------------------------------------------------
+
+        let rankedCandidates = scored;
+        const unambiguous = isUnambiguousWinner(scored);
+
+        if (unambiguous) {
+          emit({
+            stage: "poster_search",
+            message: `Clear poster candidate (score: ${scored[0].score}) — ${(() => { try { return new URL(scored[0].candidate.src).pathname; } catch { return scored[0].candidate.src; } })()}`,
+            usage: tracker.getSummary(),
+          });
+          console.log(`[poster-score] Unambiguous winner (score ${scored[0].score}, gap ${scored[0].score - (scored[1]?.score ?? 0)})`);
+        } else {
+          const topN = scored.slice(0, GEMINI_DISAMBIGUATION_TOP_N);
+          emit({
+            stage: "poster_search",
+            message: `Scores ambiguous — asking Gemini to pick best poster from top ${topN.length} candidate(s)`,
+            usage: tracker.getSummary(),
+          });
+          console.log(`[poster-select] Ambiguous — fetching top ${topN.length} images for Gemini disambiguation`);
+
+          try {
+            const imagesForGemini: ImageForDisambiguation[] = [];
+            for (const sc of topN) {
+              try {
+                const controller = new AbortController();
+                const t = setTimeout(() => controller.abort(), 10_000);
+                const res = await fetch(sc.candidate.src, { signal: controller.signal });
+                clearTimeout(t);
+                if (!res.ok) continue;
+                const rawCt = res.headers.get("content-type") || "image/jpeg";
+                const ct = rawCt.split(";")[0].trim(); // strip MIME parameters
+                if (!ct.startsWith("image/")) continue;
+                const buf = Buffer.from(await res.arrayBuffer());
+                imagesForGemini.push({
+                  base64: buf.toString("base64"),
+                  contentType: ct,
+                  src: sc.candidate.src,
+                });
+              } catch (fetchErr) {
+                console.warn(`[poster-select] Failed to fetch candidate for disambiguation: ${sc.candidate.src}`, fetchErr);
+              }
+            }
+
+            if (imagesForGemini.length > 0) {
+              const selectResult = await selectPosterWithGemini(imagesForGemini);
+              // TODO Task 7: tracker.addSelectPoster(selectResult.usage);
+
+              // Reorder: put Gemini's pick first, keep rest in score order
+              const winningSrc = imagesForGemini[selectResult.selectedIndex].src;
+              const winner = scored.find((s) => s.candidate.src === winningSrc);
+              const rest = scored.filter((s) => s.candidate.src !== winningSrc);
+              if (winner) {
+                rankedCandidates = [winner, ...rest];
+                emit({
+                  stage: "poster_search",
+                  message: `Gemini selected: ${(() => { try { return new URL(winningSrc).pathname; } catch { return winningSrc; } })()}`,
+                  usage: tracker.getSummary(),
+                });
+                console.log(`[poster-select] Gemini winner: ${winningSrc}`);
+              }
+            } else {
+              emit({
+                stage: "poster_search",
+                message: "Could not fetch candidates for disambiguation — using score order",
+                usage: tracker.getSummary(),
+              });
+            }
+          } catch (disambigErr) {
+            console.warn("[poster-select] Gemini disambiguation failed — falling back to score order:", disambigErr);
+            emit({
+              stage: "poster_search",
+              message: "Poster disambiguation failed — using score order",
+              usage: tracker.getSummary(),
+            });
+          }
+        }
+
+        // -----------------------------------------------------------------------
+        // Retry loop: try extraction on ranked candidates, up to MAX_POSTER_ATTEMPTS
+        // -----------------------------------------------------------------------
+
+        let posterExtractionSucceeded = false;
+        let attemptCount = 0;
+
+        for (const sc of rankedCandidates) {
+          if (attemptCount >= MAX_POSTER_ATTEMPTS) break;
+          if (signal?.aborted) break;
+
+          attemptCount++;
+          const candidatePath = (() => { try { return new URL(sc.candidate.src).pathname; } catch { return sc.candidate.src; } })();
+
+          emit({
+            stage: "extracting",
+            message: `Scanning poster (attempt ${attemptCount}/${MAX_POSTER_ATTEMPTS}): ${candidatePath}`,
+            usage: tracker.getSummary(),
+          });
+          console.log(`[poster-extract] Attempt ${attemptCount}/${MAX_POSTER_ATTEMPTS}: ${sc.candidate.src} (score: ${sc.score})`);
+
+          try {
+            const posterResult = await extractFromPoster(sc.candidate.src);
+            tracker.addExtraction(posterResult.usage);
+
+            if (posterResult.extraction.is_lineup_poster === false) {
+              console.log(`[poster-extract] Not a lineup poster — skipping to next candidate`);
+              emit({
+                stage: "extracting",
+                message: `Image was not a lineup poster — trying next candidate`,
+                usage: tracker.getSummary(),
+              });
+              continue;
+            }
+
+            // Success — merge artists
+            posterExtractionSucceeded = true;
+            const existingNames = new Set(extraction.artists.map((a) => a.name.toLowerCase()));
+            const newArtists = posterResult.extraction.artists.filter(
+              (a) => !existingNames.has(a.name.toLowerCase())
+            );
+
+            if (newArtists.length > 0) {
+              extraction = { ...extraction, artists: [...extraction.artists, ...newArtists] };
+              source = "text+poster";
+              emit({
+                stage: "extracting",
+                message: `Poster added ${newArtists.length} additional artist(s) — total: ${extraction.artists.length}`,
+                usage: tracker.getSummary(),
+              });
+            } else {
+              emit({
+                stage: "extracting",
+                message: "Poster scan complete — no additional artists found",
+                usage: tracker.getSummary(),
+              });
+            }
+            break;
+          } catch (extractErr) {
+            console.warn(`[poster-extract] Extraction failed for ${sc.candidate.src}:`, extractErr);
+            emit({
+              stage: "extracting",
+              message: `Poster extraction failed — trying next candidate`,
+              usage: tracker.getSummary(),
+            });
+          }
+        }
+
+        // -----------------------------------------------------------------------
+        // All attempts exhausted without a lineup poster — flag for admin review
+        // -----------------------------------------------------------------------
+
+        if (!posterExtractionSucceeded && attemptCount >= MAX_POSTER_ATTEMPTS) {
+          console.log(`[poster-extract] ${MAX_POSTER_ATTEMPTS} attempts all returned non-poster images — assuming lineup not yet available`);
+          extraction = { ...extraction, lineup_pending: true };
+          lineupPending = true;
+          if (!deepScrapeCandidate) {
+            deepScrapeCandidate = {
+              url: discoveredLineupUrl ?? startUrl,
+              reason: `No lineup poster found after ${MAX_POSTER_ATTEMPTS} extraction attempt(s) — lineup may not yet be announced. Admin review recommended.`,
+            };
+          }
+          emit({
+            stage: "extracting",
+            message: `No lineup poster found after ${MAX_POSTER_ATTEMPTS} attempt(s) — flagged for admin review`,
+            usage: tracker.getSummary(),
+          });
+        }
+      }
+    }
+  } else {
+    const scored = scorePosterCandidates(imageCandidates);
+    console.log(`[poster-score] Fallback path — ${scored.length} candidate(s) scored`);
+    for (const sc of scored.slice(0, 5)) {
+      console.log(`  [${sc.score}] ${sc.candidate.src}`);
+    }
+
+    if (scored.length === 0) {
+      throw new Error("Could not find any lineup, festival info, or poster images");
+    }
+
+    emit({
+      stage: "poster_fallback",
+      message: "No HTML content found. Extracting from best scored poster image...",
+      usage: tracker.getSummary(),
+    });
+
+    let fallbackSucceeded = false;
+    for (const sc of scored.slice(0, MAX_POSTER_ATTEMPTS)) {
+      try {
+        const posterResult = await extractFromPoster(sc.candidate.src);
+        tracker.addExtraction(posterResult.usage);
+        if (posterResult.extraction.is_lineup_poster === false) {
+          console.log(`[poster-extract] Fallback: not a lineup poster — trying next`);
+          continue;
+        }
+        extraction = posterResult.extraction;
+        source = "poster";
+        fallbackSucceeded = true;
+        break;
+      } catch (err) {
+        console.warn(`[poster-extract] Fallback extraction failed:`, err);
+      }
+    }
+    if (!fallbackSucceeded) {
+      throw new Error("Could not find a lineup poster in any of the candidate images");
+    }
   }
 
   // -----------------------------------------------------------------------
