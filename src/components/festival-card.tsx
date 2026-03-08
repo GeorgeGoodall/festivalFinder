@@ -11,6 +11,7 @@ interface FestivalCardProps {
     priceFrom: number | null;
     priceTo: number | null;
     hasCamping: boolean;
+    ageRestriction: string | null;
     posters: Array<{ imageUrl: string }>;
     artists: Array<{
       billing: string;
@@ -65,6 +66,11 @@ export function FestivalCard({ festival }: FestivalCardProps) {
             {festival.hasCamping && (
               <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
                 Camping
+              </span>
+            )}
+            {festival.ageRestriction && (
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                {festival.ageRestriction}
               </span>
             )}
           </div>

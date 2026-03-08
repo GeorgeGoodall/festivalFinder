@@ -20,6 +20,9 @@ export function SearchFilters() {
   const [camping, setCamping] = useState(
     searchParams.get("camping") === "true"
   );
+  const [ageRestriction, setAgeRestriction] = useState(
+    searchParams.get("ageRestriction") || ""
+  );
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -30,6 +33,7 @@ export function SearchFilters() {
     if (dateTo) params.set("dateTo", dateTo);
     if (priceMax) params.set("priceMax", priceMax);
     if (camping) params.set("camping", "true");
+    if (ageRestriction) params.set("ageRestriction", ageRestriction);
     router.push(`/festivals?${params.toString()}`);
   }
 
@@ -116,6 +120,16 @@ export function SearchFilters() {
           />
           <span className="text-sm text-gray-700">Camping only</span>
         </label>
+        <select
+          value={ageRestriction}
+          onChange={(e) => setAgeRestriction(e.target.value)}
+          className="rounded border border-gray-300 px-3 py-2 text-sm"
+        >
+          <option value="">All ages</option>
+          <option value="family-friendly">Family-friendly</option>
+          <option value="all ages">All ages only</option>
+          <option value="18+">18+</option>
+        </select>
         <button
           type="submit"
           className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800"

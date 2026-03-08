@@ -7,6 +7,7 @@ export interface SearchParams {
   dateTo?: string;
   priceMax?: string;
   camping?: string;
+  ageRestriction?: string;
 }
 
 export async function searchFestivals(params: SearchParams) {
@@ -29,6 +30,10 @@ export async function searchFestivals(params: SearchParams) {
 
   if (params.camping === "true") {
     where.hasCamping = true;
+  }
+
+  if (params.ageRestriction) {
+    where.ageRestriction = { contains: params.ageRestriction, mode: "insensitive" };
   }
 
   if (params.artist) {
