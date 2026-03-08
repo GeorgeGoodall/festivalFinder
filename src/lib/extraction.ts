@@ -32,6 +32,8 @@ export interface ExtractionResult {
   artists: ExtractedArtist[];
   lineup_pending?: boolean;
   lineup_may_be_incomplete?: boolean;
+  /** false if the image is not a lineup poster (banner, logo, sponsor graphic, etc.) */
+  is_lineup_poster?: boolean;
 }
 
 export interface ExtractionUsage {
@@ -81,8 +83,12 @@ const extractionTool: Anthropic.Messages.Tool = {
         },
         description: "All artists/bands identified on the poster",
       },
+      is_lineup_poster: {
+        type: "boolean",
+        description: "Set to false if this image is NOT a festival lineup poster (e.g. it is a hero banner, background image, logo, sponsor graphic, or general marketing photo). Set to true if it shows artist/band names for the festival lineup.",
+      },
     },
-    required: ["festival_name", "dates", "location", "region", "website_url", "artists"],
+    required: ["festival_name", "dates", "location", "region", "website_url", "artists", "is_lineup_poster"],
   },
 };
 
@@ -111,7 +117,11 @@ export async function extractFromPoster(imageUrl: string): Promise<ExtractionRes
           },
           {
             type: "text",
-            text: `Analyze this music festival poster and extract all information.
+            text: `IMPORTANT: First determine whether this image is a festival lineup poster — an image that lists artist or band names performing at the festival. If it is NOT (e.g. it is a hero banner, background graphic, logo, sponsor image, or general marketing photo), set is_lineup_poster to false and return an empty artists array. Do not attempt to extract artists from non-poster images.
+
+If it IS a lineup poster, set is_lineup_poster to true and apply the following rules:
+
+Analyze this music festival poster and extract all information.
 
 Rules:
 - List ALL artists/bands you can identify on the poster
