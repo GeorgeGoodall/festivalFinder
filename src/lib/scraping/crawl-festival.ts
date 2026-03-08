@@ -575,14 +575,11 @@ export async function crawlFestival(
 
       const scored = scorePosterCandidates(imageCandidates);
 
-      console.log(`[poster-score] Scored ${scored.length} candidate(s):`);
-      for (const sc of scored.slice(0, 8)) {
+      console.log(`[poster-score] Scored ${scored.length} candidate(s) — top 3:`);
+      for (const sc of scored.slice(0, 3)) {
         console.log(
-          `  [${sc.score.toString().padStart(3)}] ${sc.candidate.src}` +
-          `\n         breakdown: source=${sc.breakdown.source} url=${sc.breakdown.urlKeyword}` +
-          ` year=${sc.breakdown.year} alt=${sc.breakdown.altKeyword}` +
-          ` ctx=${sc.breakdown.contextKeyword} ratio=${sc.breakdown.aspectRatio}` +
-          ` dims=${sc.breakdown.dimensions}`
+          `  [score: ${sc.score}] ${urlPathname(sc.candidate.src)}\n` +
+          `    ${JSON.stringify(sc.breakdown)}`
         );
       }
 
@@ -765,9 +762,12 @@ export async function crawlFestival(
     }
   } else {
     const scored = scorePosterCandidates(imageCandidates);
-    console.log(`[poster-score] Fallback path — ${scored.length} candidate(s) scored`);
-    for (const sc of scored.slice(0, 5)) {
-      console.log(`  [${sc.score}] ${sc.candidate.src}`);
+    console.log(`[poster-score] Fallback path — ${scored.length} candidate(s) scored — top 3:`);
+    for (const sc of scored.slice(0, 3)) {
+      console.log(
+        `  [score: ${sc.score}] ${urlPathname(sc.candidate.src)}\n` +
+        `    ${JSON.stringify(sc.breakdown)}`
+      );
     }
 
     if (scored.length === 0) {
