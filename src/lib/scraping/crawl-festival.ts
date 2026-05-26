@@ -87,6 +87,7 @@ export interface CrawlResult {
   posterPageUrl: string | null;
   imageCandidates: ImageCandidate[];
   algorithmPosterSrc: string | null;
+  posterIsUnambiguous: boolean;
   lineupPending: boolean;
   logoImageUrl: string | null;
   usage: UsageSummary;
@@ -553,6 +554,7 @@ export async function crawlFestival(
 
   const algorithmScored = scorePosterCandidates(imageCandidates);
   const algorithmPosterSrc: string | null = algorithmScored[0]?.candidate.src ?? null;
+  const posterIsUnambiguous = isUnambiguousWinner(algorithmScored);
 
   // -----------------------------------------------------------------------
   // 5c. Poster extraction — scoring, disambiguation, retry loop
@@ -889,6 +891,7 @@ export async function crawlFestival(
     posterPageUrl: discoveredPosterPageUrl,
     imageCandidates,
     algorithmPosterSrc,
+    posterIsUnambiguous,
     lineupPending,
     logoImageUrl,
     usage,
