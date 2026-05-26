@@ -13,9 +13,14 @@ export default async function AdminFestivalsPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Festivals</h1>
-        <Link href="/admin/festivals/new" className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800">
-          Add Festival
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/admin/festivals/bulk-add" className="bg-gray-700 text-white px-4 py-2 rounded text-sm hover:bg-gray-600">
+            Bulk Add
+          </Link>
+          <Link href="/admin/festivals/new" className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800">
+            Add Festival
+          </Link>
+        </div>
       </div>
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="w-full text-left">
