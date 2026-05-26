@@ -1,6 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+  defaultHeaders: {
+    "anthropic-beta": "prompt-caching-2024-07-31",
+  },
+});
 
 export interface SocialLinks {
   instagram?: string;
@@ -94,7 +99,26 @@ const extractionTool: Anthropic.Messages.Tool = {
     },
     required: ["festival_name", "dates", "location", "region", "website_url", "artists", "is_lineup_poster"],
   },
+  cache_control: { type: "ephemeral" },
 };
+
+const SYSTEM = `IMPORTANT: First determine whether this image is a festival lineup poster — an image that lists artist or band names performing at the festival. If it is NOT (e.g. it is a hero banner, background graphic, logo, sponsor image, or general marketing photo), set is_lineup_poster to false and return an empty artists array. Do not attempt to extract artists from non-poster images.
+
+If it IS a lineup poster, set is_lineup_poster to true and apply the following rules:
+
+Analyze this music festival poster and extract all information.
+
+Rules:
+- List ALL artists/bands you can identify on the poster
+- "headliner" = largest/most prominent names, "support" = all other artists
+- Do NOT include stage names, tent names, area names, or venue zones as artists (e.g. "Main Stage", "The Tent", "DJ Stage", "Acoustic Lounge" are NOT artists)
+- Do NOT include sponsors, promoters, record labels, or ticket vendors as artists
+- Do NOT include generic descriptive text like "plus many more", "and more TBA", "special guest" as artists
+- If an artist name includes a featuring/collaboration (e.g. "Artist A feat. Artist B", "Artist A ft. Artist B", "Artist A x Artist B", "Artist A & Artist B", "Artist A b2b Artist B"), split them into SEPARATE artist entries with the same billing level
+- If dates are unclear, use your best estimate. If year is missing, assume 2026
+- Extract location (venue, town, area — whatever is visible) and region separately
+- If a website URL is shown on the poster, include it
+- If any field is unclear, use an empty string`;
 
 export async function extractFromPoster(imageUrl: string): Promise<ExtractionResponse> {
   const response = await fetch(imageUrl);
@@ -105,6 +129,13 @@ export async function extractFromPoster(imageUrl: string): Promise<ExtractionRes
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 4096,
+    system: [
+      {
+        type: "text",
+        text: SYSTEM,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
     tools: [extractionTool],
     tool_choice: { type: "tool", name: "extract_festival_info" },
     messages: [
@@ -121,23 +152,7 @@ export async function extractFromPoster(imageUrl: string): Promise<ExtractionRes
           },
           {
             type: "text",
-            text: `IMPORTANT: First determine whether this image is a festival lineup poster — an image that lists artist or band names performing at the festival. If it is NOT (e.g. it is a hero banner, background graphic, logo, sponsor image, or general marketing photo), set is_lineup_poster to false and return an empty artists array. Do not attempt to extract artists from non-poster images.
-
-If it IS a lineup poster, set is_lineup_poster to true and apply the following rules:
-
-Analyze this music festival poster and extract all information.
-
-Rules:
-- List ALL artists/bands you can identify on the poster
-- "headliner" = largest/most prominent names, "support" = all other artists
-- Do NOT include stage names, tent names, area names, or venue zones as artists (e.g. "Main Stage", "The Tent", "DJ Stage", "Acoustic Lounge" are NOT artists)
-- Do NOT include sponsors, promoters, record labels, or ticket vendors as artists
-- Do NOT include generic descriptive text like "plus many more", "and more TBA", "special guest" as artists
-- If an artist name includes a featuring/collaboration (e.g. "Artist A feat. Artist B", "Artist A ft. Artist B", "Artist A x Artist B", "Artist A & Artist B", "Artist A b2b Artist B"), split them into SEPARATE artist entries with the same billing level
-- If dates are unclear, use your best estimate. If year is missing, assume 2026
-- Extract location (venue, town, area — whatever is visible) and region separately
-- If a website URL is shown on the poster, include it
-- If any field is unclear, use an empty string`,
+            text: "Extract festival information from this image.",
           },
         ],
       },
