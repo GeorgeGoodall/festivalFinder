@@ -5,8 +5,9 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { slugify } from "@/lib/utils";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { CrawlResult } from "@/lib/scraping/crawl-festival";
 
-async function uploadImageFromUrl(src: string): Promise<string | null> {
+export async function uploadImageFromUrl(src: string): Promise<string | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
@@ -273,4 +274,106 @@ export async function deleteFestival(id: string) {
   }
   revalidatePath("/admin/festivals");
   redirect("/admin/festivals");
+}
+
+export async function createFestivalFromCrawl(
+  result: CrawlResult,
+  selectedPosterSrc: string | null
+): Promise<{ festivalId: string; festivalName: string; artistCount: number }> {
+  const ext = result.extraction;
+  const name = ext.festival_name || "Unnamed Festival";
+
+  let slug = slugify(name);
+  const existing = await prisma.festival.findUnique({ where: { slug } });
+  if (existing) slug = `${slug}-${Date.now()}`;
+
+  const parsedStart = new Date(ext.dates?.start ?? "");
+  const parsedEnd = new Date(ext.dates?.end ?? "");
+
+  const festival = await prisma.festival.create({
+    data: {
+      name,
+      slug,
+      description: ext.description || null,
+      startDate: isNaN(parsedStart.getTime()) ? new Date() : parsedStart,
+      endDate: isNaN(parsedEnd.getTime()) ? new Date() : parsedEnd,
+      location: ext.location || "",
+      region: ext.region || "",
+      websiteUrl: ext.website_url || null,
+      ticketUrl: ext.ticket_url || null,
+      lineupUrl: result.lineupUrl || null,
+      posterPageUrl: result.posterPageUrl || null,
+      lineupPending: result.lineupPending,
+      hasCamping: ext.has_camping ?? false,
+      campingDetails: ext.camping_details || null,
+      ageRestriction: ext.age_restriction || null,
+      socialInstagram: ext.social_links?.instagram || null,
+      socialFacebook: ext.social_links?.facebook || null,
+      socialX: ext.social_links?.x || null,
+      socialTiktok: ext.social_links?.tiktok || null,
+      status: "draft",
+    },
+  });
+
+  // Artists
+  let artistCount = 0;
+  for (const a of ext.artists ?? []) {
+    const artistSlug = slugify(a.name);
+    let artist = await prisma.artist.findUnique({ where: { slug: artistSlug } });
+    if (!artist) {
+      artist = await prisma.artist.create({
+        data: { name: a.name, slug: artistSlug, genre: a.genre || undefined },
+      });
+    } else if (!artist.genre && a.genre) {
+      await prisma.artist.update({ where: { id: artist.id }, data: { genre: a.genre } });
+    }
+    await prisma.festivalArtist.create({
+      data: {
+        festivalId: festival.id,
+        artistId: artist.id,
+        billing: (a.billing as "headliner" | "support") || "support",
+        day: a.day ?? undefined,
+        stage: a.stage || undefined,
+      },
+    });
+    artistCount++;
+  }
+
+  // Lineup poster
+  if (selectedPosterSrc) {
+    const uploadedUrl = await uploadImageFromUrl(selectedPosterSrc);
+    if (uploadedUrl) {
+      await prisma.festivalPoster.create({
+        data: { festivalId: festival.id, category: "full_lineup", imageUrl: uploadedUrl, version: 1 },
+      });
+    }
+  }
+
+  // Logo (already uploaded to Supabase during crawl — use directly)
+  if (result.logoImageUrl) {
+    await prisma.festivalPoster.create({
+      data: { festivalId: festival.id, category: "logo", imageUrl: result.logoImageUrl, version: 1 },
+    });
+  }
+
+  // Scrape log
+  await prisma.scrapeLog.create({
+    data: {
+      festivalId: festival.id,
+      url: result.extraction.website_url || "",
+      source: result.source,
+      status: "success",
+      pagesScraped: result.pagesScraped,
+      artistsFound: ext.artists?.length ?? 0,
+      artistsAdded: artistCount,
+      lineupUrl: result.lineupUrl,
+      lineupPending: result.lineupPending,
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens,
+    },
+  }).catch((err) => console.error("[createFestivalFromCrawl] ScrapeLog failed:", err));
+
+  revalidatePath("/admin/festivals");
+
+  return { festivalId: festival.id, festivalName: name, artistCount };
 }
