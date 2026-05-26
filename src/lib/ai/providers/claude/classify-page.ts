@@ -9,7 +9,20 @@ export interface ClassifyPageResult {
   usage: AiUsage;
 }
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+const MODEL = "claude-haiku-4-5-20251001";
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+  defaultHeaders: { "anthropic-beta": "prompt-caching-2024-07-31" },
+});
+
+const SYSTEM: Anthropic.Messages.TextBlockParam[] = [
+  {
+    type: "text",
+    text: "You classify music festival website pages. Use the classify_page tool.",
+    cache_control: { type: "ephemeral" },
+  },
+];
 
 const CLASSIFY_TOOL: Anthropic.Tool = {
   name: "classify_page",
@@ -29,12 +42,12 @@ const CLASSIFY_TOOL: Anthropic.Tool = {
       },
       confidence: {
         type: "number",
-        description:
-          "Confidence score between 0 and 1 for the classification.",
+        description: "Confidence score between 0 and 1 for the classification.",
       },
     },
     required: ["category", "confidence"],
   },
+  cache_control: { type: "ephemeral" },
 };
 
 export async function classifyPage(
@@ -42,8 +55,6 @@ export async function classifyPage(
   jsonLd: string | null,
   hasImages: boolean
 ): Promise<ClassifyPageResult> {
-  const MODEL = "claude-haiku-4-5-20251001";
-
   let userContent = "";
   if (jsonLd) {
     userContent += `JSON-LD metadata:\n${jsonLd}\n\n`;
@@ -56,6 +67,7 @@ export async function classifyPage(
   const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 128,
+    system: SYSTEM,
     tools: [CLASSIFY_TOOL],
     tool_choice: { type: "tool", name: "classify_page" },
     messages: [{ role: "user", content: userContent }],
@@ -75,14 +87,7 @@ export async function classifyPage(
     return { category: "irrelevant", confidence: 0, usage };
   }
 
-  const input = toolBlock.input as {
-    category: PageCategory;
-    confidence: number;
-  };
+  const input = toolBlock.input as { category: PageCategory; confidence: number };
 
-  return {
-    category: input.category,
-    confidence: input.confidence,
-    usage,
-  };
+  return { category: input.category, confidence: input.confidence, usage };
 }
