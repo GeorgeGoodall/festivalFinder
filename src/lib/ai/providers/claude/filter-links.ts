@@ -15,6 +15,33 @@ export interface FilterLinksResult {
 
 const MODEL = "claude-haiku-4-5-20251001";
 
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+  defaultHeaders: { "anthropic-beta": "prompt-caching-2024-07-31" },
+});
+
+const SYSTEM: Anthropic.Messages.TextBlockParam[] = [
+  {
+    type: "text",
+    text: `You are filtering links found on a music festival website. Select the links most likely to lead to useful festival information.
+
+INCLUDE links leading to:
+- Lineup / artists / performers / acts
+- About / info pages
+- Tickets
+- Programme / schedule / stages / days
+- Poster / artwork / flyer pages
+
+EXCLUDE links leading to:
+- Contact, privacy, terms, news, blog, press, careers
+- Login, shop/merch, social media
+- Accessibility, FAQs, cookies
+
+When unsure, include the link (false positives are cheap).`,
+    cache_control: { type: "ephemeral" },
+  },
+];
+
 export async function filterLinksForFestival(
   links: LinkCandidate[]
 ): Promise<FilterLinksResult> {
@@ -26,8 +53,6 @@ export async function filterLinksForFestival(
     };
   }
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-
   const numberedList = links
     .map(
       (link, i) =>
@@ -38,6 +63,7 @@ export async function filterLinksForFestival(
   const message = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 256,
+    system: SYSTEM,
     tools: [
       {
         name: "select_relevant_links",
@@ -60,28 +86,11 @@ export async function filterLinksForFestival(
     messages: [
       {
         role: "user",
-        content: `You are filtering links found on a music festival website. Select the links most likely to lead to useful festival information.
-
-INCLUDE links leading to:
-- Lineup / artists / performers / acts
-- About / info pages
-- Tickets
-- Programme / schedule / stages / days
-
-EXCLUDE links leading to:
-- Contact, privacy, terms, news, blog, press, careers
-- Login, shop/merch, social media
-- Accessibility, FAQs, cookies
-
-When unsure, include the link (false positives are cheap).
-
-Here are the links:
-${numberedList}`,
+        content: `Here are the links:\n${numberedList}`,
       },
     ],
   });
 
-  // Parse the tool_use response
   const toolUseBlock = message.content.find(
     (block) => block.type === "tool_use"
   );
@@ -89,7 +98,6 @@ ${numberedList}`,
   let selectedIndices: number[] = [];
   if (toolUseBlock && toolUseBlock.type === "tool_use") {
     const input = toolUseBlock.input as { relevant_indices: number[] };
-    // Filter indices to valid range
     selectedIndices = input.relevant_indices.filter(
       (i) => Number.isInteger(i) && i >= 0 && i < links.length
     );
