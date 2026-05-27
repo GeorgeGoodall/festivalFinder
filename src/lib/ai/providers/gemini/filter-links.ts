@@ -78,6 +78,7 @@ INCLUDE links leading to:
 - About / info pages
 - Tickets
 - Programme / schedule / stages / days
+- Poster / artwork / flyer pages
 
 EXCLUDE links leading to:
 - Contact, privacy, terms, news, blog, press, careers
